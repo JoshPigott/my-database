@@ -8,27 +8,27 @@ import (
 func main() {
 	DB, err := database.OpenDatabase()
 	if err != nil {
-		panic("Unable to open the database")
+		err = fmt.Errorf("failed to open the database: %w", err)
+		panic(err)
 	}
-	err = DB.Set("a", "1")
-	if err != nil {
-		println("Unable to add data")
+	for range 26 {
+		err = DB.Set("a", "1")
+		if err != nil {
+			println("failed to add data", err)
+		}
+		err = DB.Set("a", "2")
+		if err != nil {
+			println("failed to add data", err)
+		}
+		err = DB.Set("b", "3")
+		if err != nil {
+			println("failed to add data", err)
+		}
+		err = DB.Delete("a")
+		if err != nil {
+			println("failed to delete data")
+		}
 	}
-	err = DB.Set("a", "2")
-	if err != nil {
-		println("Unable to add data")
-	}
-	fmt.Println("a:", DB.Get("a"))
-	fmt.Println("All data", DB.GetAll())
-	err = DB.Delete("a")
-	if err != nil {
-		println("Unable to delete data")
-	}
+	fmt.Println("b:", DB.Get("b"))
 	DB.Close()
 }
-
-// database.InsertData("Josh", "Just try")
-// database.InsertData("Josh", "Josh?...")
-// database.InsertData("Chicken", "Dead")
-
-// database.SelectData()

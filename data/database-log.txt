@@ -1,9 +1,5 @@
 SET a 1
+SET b 3
 SET a 2
-DELETE a
-SET a 1
-SET a 2
-DELETE a
-SET a 1
-SET a 2
+SET b 3
 DELETE a

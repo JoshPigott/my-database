@@ -22,73 +22,18 @@ https://www.youtube.com/watch?v=kQ3GJuflJN4
 
 
 ## Next 
-get this point before I commit 
-I am going to assume the most simple input e.g. no space in input
-db.Set("a", "1")
-db.Set("a", "2")
-db.Get("a") → "2"
-db.Delete("a")
+Next when the database get too big I will rewrite it
 
 
-SET a 1
-SET a 2
-DELETE a
+I am using this of somewhat of a plan
+https://chatgpt.com/share/69f99c49-4b50-8323-9ccc-19574937e236
 
-I think I will need to strus in
-
-
-
-
-
-Some left over code aye
-// func getData(scanner *bufio.Scanner) ([][]string, error) {
-// 	// Note I am assume all key and value have no spaces
-// 	var err error
-// 	data := [][]string{}
-// 	for scanner.Scan() {
-// 		line := scanner.Text()
-// 		command, info, found := strings.Cut(line, " ")
-
-// 		if found == false {
-// 			continue
-// 		}
-
-// 		if command == "SET" {
-// 			// Gets key length
-// 			keyLengthStr, info, found := strings.Cut(info, " ")
-// 			if found == false {
-// 				return data, errors.New("Unable to get data")
-// 			}
-// 			keyLength, err := strconv.Atoi(keyLengthStr)
-// 			if err != nil {
-// 				continue
-// 			}
-// 			// Gets key value
-// 			keyContent := info[0:keyLength]
-
-// 			// Gets value length
-// 			_, info, found = strings.Cut(info[keyLength:], " ")
-// 			if found == false {
-// 				return data, errors.New("Unable to get data")
-// 			}
-// 			// Gets value length
-// 			valueContent := info
-// 			// Add to data
-// 			output := []string{keyContent, valueContent}
-// 			data = append(data, output)
-// 		}
-// 		if command == "DELETE" {
-// 			key := info
-// 			newData := make([][]string, 0, len(data))
-
-// 			for i := 0; i < len(data); i++ {
-// 				if data[i][0] != key {
-// 					newData = append(newData, data[i])
-// 				}
-// 			}
-// 			data = newData
-// 		}
-// 	}
-// 	return data, err
-// }
-
+Basically 
+Phase 1 — Log-based key-value store
+Phase 2 — Persistence + crash recovery  (here)
+Phase 3 — Page-based storage
+Phase 4 — B-Tree index
+Phase 5 — Tables
+Phase 6 — Simple query engine
+Phase 7 — Transactions (hard but important)
+Phase 8 — Indexes
