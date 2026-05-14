@@ -1,34 +1,26 @@
 package main
 
 import (
-	"bubbly-database/internal/database"
+	"bubbly-database/internal/pages"
 	"fmt"
 )
 
 func main() {
-	DB, err := database.OpenDatabase()
+	if err := pages.CreatePage(pages.MetadataPage); err != nil {
+		fmt.Println("Create:", err)
+	}
+	for i := range 130 {
+		if err := pages.AddToPage("Josh Pigott", "Can do anything"); err != nil {
+			fmt.Println("Add:", err)
+			fmt.Println("i:", i)
+			break
+		}
+	}
+	data, err := pages.ReadPage()
 	if err != nil {
-		err = fmt.Errorf("failed to open the database: %w", err)
-		panic(err)
+		fmt.Println("Read:", err)
 	}
-	for range 26 {
-		err = DB.Set("a", "1")
-		if err != nil {
-			println("failed to add data", err)
-		}
-		err = DB.Set("a", "2")
-		if err != nil {
-			println("failed to add data", err)
-		}
-		err = DB.Set("b", "3")
-		if err != nil {
-			println("failed to add data", err)
-		}
-		err = DB.Delete("a")
-		if err != nil {
-			println("failed to delete data")
-		}
+	for key, value := range data {
+		println("Key:", key, "Value:", value)
 	}
-	fmt.Println("b:", DB.Get("b"))
-	DB.Close()
 }
