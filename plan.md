@@ -18,8 +18,8 @@
 ## Could good to watch when I am tired
 https://www.youtube.com/watch?v=kQ3GJuflJN4
 
-## I am just going to start building somthing every simple
-
+## useful info
+https://mohllal.github.io/database-internals-part-1/?
 
 ## Next 
 Next when the database get too big I will rewrite it
@@ -37,3 +37,10 @@ Phase 5 — Tables
 Phase 6 — Simple query engine
 Phase 7 — Transactions (hard but important)
 Phase 8 — Indexes
+
+I still think about how the key work I think where I jsut want a 
+key value database and how it all works
+
+Is right offset and the right bytes themself correct
+
+When writing a few page I will just need to change the slots
