@@ -1,26 +1,43 @@
 package main
 
 import (
-	"bubbly-database/internal/pages"
+	"bubbly-database/internal/database"
 	"fmt"
 )
 
+var DB *database.DB
+
 func main() {
-	if err := pages.CreatePage(pages.MetadataPage); err != nil {
-		fmt.Println("Create:", err)
-	}
-	for i := range 130 {
-		if err := pages.AddToPage("Josh Pigott", "Can do anything"); err != nil {
-			fmt.Println("Add:", err)
-			fmt.Println("i:", i)
-			break
-		}
-	}
-	data, err := pages.ReadPage()
+	DB, err := database.Open()
 	if err != nil {
-		fmt.Println("Read:", err)
+		fmt.Println(err)
+	}
+	if err = DB.CreatePage(database.MetadataPage); err != nil {
+		fmt.Println(err)
+	}
+	// if err := DB.AddToPage("1", "one"); err != nil {
+	// 	fmt.Println(err)
+	// }
+	// if err := DB.AddToPage("12", "onetwo"); err != nil {
+	// 	fmt.Println(err)
+	// }
+	// if err := DB.AddToPage("1234", "4321"); err != nil {
+	// 	fmt.Println(err)
+	// }
+	// if err := DB.AddToPage("6789", "9876"); err != nil {
+	// 	fmt.Println(err)
+	// }
+	// if err := DB.Delete("12"); err != nil {
+	// 	fmt.Println(err)
+	// }
+	data, err := DB.SelectAll()
+	if err != nil {
+		fmt.Println(err)
 	}
 	for key, value := range data {
-		println("Key:", key, "Value:", value)
+		fmt.Println("key:", key, "value:", value)
+	}
+	if err := DB.Close(); err != nil {
+		fmt.Println(err)
 	}
 }

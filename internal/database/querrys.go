@@ -5,82 +5,31 @@ import (
 	"os"
 )
 
-const logFileName = "data/database-log.txt"
+// THere are going to be querrys that the user can send
 
 type DB struct {
-	Data     map[string]string
-	File     *os.File
-	Metadata *Metadata
+	File *os.File
 }
 
-// So every time I change the meta do I need to rewrite the whole meta data file?
-func OpenDatabase() (*DB, error) {
-	// This is wrong I will not able to append
-	f, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0664)
-	if err != nil {
-		return nil, err
+func newDatabase(file *os.File) DB {
+	return DB{
+		File: file,
 	}
+}
 
-	metadata, err := getMetadata()
+func Open() (*DB, error) {
+	file, err := os.OpenFile(FileName, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open page: %w", err)
 	}
+	db := newDatabase(file)
+	return &db, nil
 
-	data, err := replyLog(f)
-	if err != nil {
-		return nil, err
-	}
-	DB := DB{
-		Data:     data,
-		File:     f,
-		Metadata: metadata,
-	}
-	return &DB, err
 }
 
 func (DB *DB) Close() error {
-	err := DB.File.Close()
-	// close meta file
-	return err
-}
-
-func (DB *DB) Set(key string, value string) error {
-	// Updates log
-	message := fmt.Sprintf("SET %s %s", key, value)
-	// Updates data
-	DB.Data[key] = value
-	err := DB.logAction(message)
-	return err
-}
-
-func (DB *DB) Update(key string, value string) error {
-	// Updates log
-	message := fmt.Sprintf("SET %s %s", key, value)
-	// Updates data
-	DB.Data[key] = value
-	err := DB.logAction(message)
-	return err
-}
-
-func (DB *DB) Delete(key string) error {
-	// Updates log
-	message := fmt.Sprintf("DELETE %s", key)
-	// Updates data
-	delete(DB.Data, key)
-	err := DB.logAction(message)
-	return err
-}
-
-// Convert map into a list
-func (DB *DB) GetAll() [][]string {
-	allData := [][]string{}
-	for key, value := range DB.Data {
-		item := []string{key, value}
-		allData = append(allData, item)
+	if err := DB.File.Close(); err != nil {
+		return fmt.Errorf("failed to close file: %w", err)
 	}
-	return allData
-}
-
-func (DB *DB) Get(key string) string {
-	return DB.Data[key]
+	return nil
 }
