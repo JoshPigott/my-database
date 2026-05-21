@@ -44,3 +44,14 @@ key value database and how it all works
 Is right offset and the right bytes themself correct
 
 When writing a few page I will just need to change the slots
+
+Before b trees 
+- WAL (append-only log) (did i just delete this lol)
+- DB metadata page - page IDs
+
+
+Add metadata page
+Add ReadPage(pageID)
+Add WritePage(pageID)
+Support allocating new pages
+Then start B-tree splits/routing pages
