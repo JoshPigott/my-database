@@ -81,6 +81,22 @@ func (DB *DB) CreatePage(pageType PageType) error {
 	return nil
 }
 
+// Creates the first data page when need and no more
+func (DB *DB) createFirstDataPage() error {
+	info, err := DB.File.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to read database size: %w", err)
+	}
+	fileSize := info.Size()
+	// Checks if only metadata page
+	if fileSize == pageSize {
+		if err := DB.CreatePage(DataPage); err != nil {
+			return fmt.Errorf("failed to create new data page: %w", err)
+		}
+	}
+	return nil
+}
+
 // Finds the data offset
 func getOffsets(freeSpace int, dataSize int, numslots uint16) (int, int) {
 	totalSlotSize := int(numslots) * slotSize
@@ -113,4 +129,29 @@ func getDataBuffer(key string, value string, dataSize int) []byte {
 	copy(buf[4:], []byte(key))
 	copy(buf[valueStart:], []byte(value))
 	return buf
+}
+
+// Get next data page to write to and returns new data page info
+func (DB *DB) ensureWritablePage(metadata metadata, pageID uint32) (pageMetadata, uint32, error) {
+	var pageMetadata pageMetadata
+	if metadata.freePageStart != 0 {
+		// uses a free page
+		pageID = metadata.freePageStart
+		// I will still need to update some stuff here
+		// But I will do it when I get to free pages
+	} else {
+		// create a new page
+		err := DB.CreatePage(DataPage)
+		if err != nil {
+			return pageMetadata, pageID, fmt.Errorf("failed to add to page %w", err)
+		}
+		// Compute new page values
+		pageID++
+		pageMetadata, err = DB.readPageMetadata(pageID)
+		if err != nil {
+			return pageMetadata, pageID, fmt.Errorf("failed to get metadata: %w", err)
+		}
+		return pageMetadata, pageID, nil
+	}
+	return pageMetadata, pageID, nil
 }

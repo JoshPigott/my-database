@@ -38,13 +38,6 @@ Phase 6 — Simple query engine
 Phase 7 — Transactions (hard but important)
 Phase 8 — Indexes
 
-I still think about how the key work I think where I jsut want a 
-key value database and how it all works
-
-Is right offset and the right bytes themself correct
-
-When writing a few page I will just need to change the slots
-
 Before b trees 
 - WAL (append-only log) (did i just delete this lol)
 - DB metadata page - page IDs
@@ -55,3 +48,9 @@ Add ReadPage(pageID)
 Add WritePage(pageID)
 Support allocating new pages
 Then start B-tree splits/routing pages
+
+
+Firgure out how muilplte pages are linked
+Like with PageID linking to an offset or how
+
+Not free pages does not quite work right atm

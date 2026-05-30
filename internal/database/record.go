@@ -1,6 +1,8 @@
 package database
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
 type record struct {
 	slotIndex int

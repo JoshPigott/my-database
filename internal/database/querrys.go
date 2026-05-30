@@ -2,7 +2,6 @@ package database
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"os"
 )
@@ -34,6 +33,9 @@ func Open() (*DB, error) {
 	if err := db.ensureMetadataPage(); err != nil {
 		return nil, fmt.Errorf("failed to create metadata page: %w", err)
 	}
+	if err := db.createFirstDataPage(); err != nil {
+		return nil, fmt.Errorf("failed to create first data page")
+	}
 	return &db, nil
 }
 
@@ -46,28 +48,50 @@ func (DB *DB) Close() error {
 
 // Adds to page if there is room to add the page
 func (DB *DB) AddToPage(key string, value string) error {
-	// calculate required space
+	var pageID uint32
+	// Get database metadata
+	metadata, err := DB.readMetadata()
+	if err != nil {
+		return fmt.Errorf("failed to read : %w", err)
+	}
+	// Get last used page
+	if metadata.freePageStart != 0 {
+		pageID = metadata.freePageStart - 1
+	} else {
+		pageID = metadata.totalNumPages
+	}
+
+	// Calculate required space
 	dataSize := keyLengthStorageSize + len(key) + valueLengthStorageSize + len(value)
-	pageMetadata, err := DB.readPageMetadata(testPageID)
+	pageMetadata, err := DB.readPageMetadata(pageID)
 	if err != nil {
 		return fmt.Errorf("failed to get metadata")
 	}
 
-	// validate capacity
+	// Validate capacity
 	freeSpace := int(pageMetadata.freeSpaceEnd - pageMetadata.freeSpaceStart)
-	if freeSpace < (slotSize + dataSize) {
-		return errors.New("failed to add page due to insufficient page storage capacity")
+	requiredSpace := slotSize + dataSize
+	needsNewPage := freeSpace < requiredSpace
+	if needsNewPage {
+		pageMetadata, pageID, err = DB.ensureWritablePage(metadata, pageID)
+		if err != nil {
+			return fmt.Errorf("failed ensure writable data page: %w", err)
+		}
+		freeSpace = int(pageMetadata.freeSpaceEnd - pageMetadata.freeSpaceStart)
 	}
-	// compute offsets and bytes to add
+
+	// Compute offsets and bytes to add
 	slotOffset, newDataOffset := getOffsets(freeSpace, dataSize, pageMetadata.numslots)
 	slotBuf := getSlotBuffer(uint16(newDataOffset), uint16(dataSize), slotNormal)
 	dataBuf := getDataBuffer(key, value, dataSize)
 
-	// update file
-	if err := DB.writeBytes(slotBuf, slotOffset, testPageID); err != nil {
+	// Update file
+	fmt.Println("Updating a slot")
+	if err := DB.WriteBytes(slotBuf, slotOffset, pageID); err != nil {
 		return fmt.Errorf("failed to write slot: %w", err)
 	}
-	if err := DB.writeBytes(dataBuf, newDataOffset, testPageID); err != nil {
+	fmt.Println("Updating a the data")
+	if err := DB.WriteBytes(dataBuf, newDataOffset, pageID); err != nil {
 		return fmt.Errorf("failed to write new data: %w", err)
 	}
 	if err := DB.updatePageMetadata(pageMetadata, dataSize); err != nil {
@@ -78,21 +102,28 @@ func (DB *DB) AddToPage(key string, value string) error {
 
 // Check all the data records and if it matches the key updates the flag
 func (DB *DB) Delete(key string) error {
-	dataRecords, err := DB.readPage(testPageID)
+	numOfPagesToRead, err := DB.getNumOfPagesToRead()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get page of pages to read")
 	}
-	for _, dataRecord := range dataRecords {
-		if dataRecord.key != key {
-			continue
+	// Loops over each page
+	for pageID := 1; pageID <= numOfPagesToRead; pageID++ {
+		dataRecords, err := DB.readPage(uint32(pageID))
+		if err != nil {
+			return fmt.Errorf("failed to read page: %w", err)
 		}
-		// Change flag to deleted
-		slotFlagBytes := make([]byte, slotFlagSize)
-		binary.BigEndian.PutUint16(slotFlagBytes, slotDeleted)
+		for _, dataRecord := range dataRecords {
+			if dataRecord.key != key {
+				continue
+			}
+			// Change flag to deleted
+			slotFlagBytes := make([]byte, slotFlagSize)
+			binary.BigEndian.PutUint16(slotFlagBytes, slotDeleted)
 
-		slotOffset := pageMetadataSize + (dataRecord.slotIndex * slotSize)
-		slotFlagOffset := slotOffset + slotOffsetSize + slotLengthSize
-		DB.writeBytes(slotFlagBytes, slotFlagOffset, testPageID)
+			slotOffset := pageMetadataSize + (dataRecord.slotIndex * slotSize)
+			slotFlagOffset := slotOffset + slotOffsetSize + slotLengthSize
+			DB.WriteBytes(slotFlagBytes, slotFlagOffset, uint32(pageID))
+		}
 	}
 	return nil
 }
@@ -100,18 +131,34 @@ func (DB *DB) Delete(key string) error {
 // Return in a map of the key -> value. Remove duplicates and deleted records
 func (DB *DB) SelectAll() (map[string]string, error) {
 	data := map[string]string{}
-	dataRecords, err := DB.readPage(testPageID)
+	numOfPagesToRead, err := DB.getNumOfPagesToRead()
 	if err != nil {
-		return data, fmt.Errorf("failed to format data: %w", err)
+		return data, fmt.Errorf("failed to get page of pages to read")
 	}
-	for _, dataRecord := range dataRecords {
-		// Check  if value has been deleted
-		if dataRecord.slot.flag != slotNormal {
-			continue
+	// Loops over each page
+	for pageID := 1; pageID <= numOfPagesToRead; pageID++ {
+		dataRecords, err := DB.readPage(uint32(pageID))
+		if err != nil {
+			return data, fmt.Errorf("failed to format data: %w", err)
 		}
-		data[dataRecord.key] = dataRecord.value
+		for _, dataRecord := range dataRecords {
+			// Check  if value has been deleted
+			if dataRecord.slot.flag != slotNormal {
+				continue
+			}
+			data[dataRecord.key] = dataRecord.value
+		}
 	}
 	return data, nil
+}
+
+// Trying to test out if DB write work on secound time
+// I don't think it does so I want to what DB is
+func (DB *DB) WriteSix() {
+	fmt.Println("DB:", DB.File)
+	if err := DB.WriteBytes([]byte{5}, 0, uint32(2)); err != nil {
+		fmt.Println("failed to write 9")
+	}
 }
 
 // Note this will chagne as I put B trees in

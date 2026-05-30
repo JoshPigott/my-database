@@ -35,7 +35,8 @@ func (DB *DB) updatePageMetadata(oldPageMetadata pageMetadata, dataSize int) err
 		freeSpaceEnd:   oldPageMetadata.freeSpaceEnd - uint16(dataSize),
 	}
 	buf := CreatePageMetadataBuffer(newPageMetadata)
-	err := DB.writeBytes(buf, 0, oldPageMetadata.pageID)
+	fmt.Println("Update page metadata")
+	err := DB.WriteBytes(buf, 0, oldPageMetadata.pageID)
 	if err != nil {
 		return fmt.Errorf("failed to update page metadata: %w", err)
 	}

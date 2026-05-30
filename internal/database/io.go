@@ -45,10 +45,11 @@ func (DB *DB) writePage(bytes []byte, pageType PageType) error {
 }
 
 // Open up database writes bytes and syncs bytes
-func (DB *DB) writeBytes(bytes []byte, offset int, pageID uint32) error {
+func (DB *DB) WriteBytes(bytes []byte, offset int, pageID uint32) error {
 	pageOffSet := getPageOffset(pageID)
 	totalOffset := int64(offset) + pageOffSet
 
+	// I want to read the bytes before
 	if _, err := DB.File.Seek(totalOffset, io.SeekStart); err != nil {
 		return fmt.Errorf("failed to write bytes: %w", err)
 	}
@@ -56,6 +57,7 @@ func (DB *DB) writeBytes(bytes []byte, offset int, pageID uint32) error {
 		return fmt.Errorf("failed to write bytes: %w", err)
 	}
 
+	// I want to read the bytes after
 	if err := DB.File.Sync(); err != nil {
 		return fmt.Errorf("failed to write bytes: %w", err)
 	}
