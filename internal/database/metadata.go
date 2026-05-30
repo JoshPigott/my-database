@@ -62,7 +62,8 @@ func formatMetadata(metadataBytes []byte) metadata {
 
 func (DB *DB) updateMetadata(metadata metadata) error {
 	buf := createMetadataBuffer(metadata)
-	if err := DB.writeBytes(buf, pageMetadataSize, metadataPageID); err != nil {
+	fmt.Println("Updating metadata")
+	if err := DB.WriteBytes(buf, pageMetadataSize, metadataPageID); err != nil {
 		return err
 	}
 	return nil
@@ -75,4 +76,16 @@ func createMetadataBuffer(metadata metadata) []byte {
 	binary.BigEndian.PutUint32(buf[totalNumPagesIndex:freePageStartIndex], metadata.totalNumPages)
 	binary.BigEndian.PutUint32(buf[freePageStartIndex:metadataSize], metadata.freePageStart)
 	return buf
+}
+
+// Return the number of pages that should be read
+func (DB *DB) getNumOfPagesToRead() (int, error) {
+	metadata, err := DB.readMetadata()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read number of pages: %w", err)
+	}
+	if metadata.freePageStart != 0 {
+		return int(metadata.freePageStart), nil
+	}
+	return int(metadata.totalNumPages), nil
 }
