@@ -26,7 +26,7 @@ func (DB *DB) writeNewPage(pageID uint32, pageType PageType) error {
 	pageMetadata := pageMetadata{
 		pageType:       pageType,
 		pageID:         pageID,
-		numslots:       defaultNumSlots,
+		numSlots:       defaultNumSlots,
 		freeSpaceStart: pageMetadataSize,
 		freeSpaceEnd:   pageSize,
 	}
@@ -95,16 +95,6 @@ func (DB *DB) createFirstDataPage() error {
 		}
 	}
 	return nil
-}
-
-// Finds the data offset
-func getOffsets(freeSpace int, dataSize int, numslots uint16) (int, int) {
-	totalSlotSize := int(numslots) * slotSize
-	slotOffset := totalSlotSize + pageMetadataSize
-
-	dataStart := slotOffset + freeSpace
-	newDataOffset := dataStart - dataSize
-	return slotOffset, newDataOffset
 }
 
 // and convert that into bytes and return it

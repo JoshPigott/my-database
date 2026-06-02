@@ -80,17 +80,26 @@ func (DB *DB) AddToPage(key string, value string) error {
 		freeSpace = int(pageMetadata.freeSpaceEnd - pageMetadata.freeSpaceStart)
 	}
 
-	// Compute offsets and bytes to add
-	slotOffset, newDataOffset := getOffsets(freeSpace, dataSize, pageMetadata.numslots)
+	// Get page data
+	pageBytes, _, records, err := DB.readFullPage(pageID)
+	if err != nil {
+		return fmt.Errorf("failed to get page info: %w", err)
+	}
+	slotPlacment := calculateSlotPlacement(key, records)
+
+	// Compute offsets
+	slotOffset := getSlotOffset(slotPlacment)
+	newDataOffset := getDataOffset(freeSpace, dataSize, pageMetadata.numSlots)
+
+	// Compute buffers
 	slotBuf := getSlotBuffer(uint16(newDataOffset), uint16(dataSize), slotNormal)
+	slotReorderBuf := getSlotReorderBuf(pageBytes, slotBuf, int(pageMetadata.numSlots), slotPlacment)
 	dataBuf := getDataBuffer(key, value, dataSize)
 
 	// Update file
-	fmt.Println("Updating a slot")
-	if err := DB.WriteBytes(slotBuf, slotOffset, pageID); err != nil {
+	if err := DB.WriteBytes(slotReorderBuf, slotOffset, pageID); err != nil {
 		return fmt.Errorf("failed to write slot: %w", err)
 	}
-	fmt.Println("Updating a the data")
 	if err := DB.WriteBytes(dataBuf, newDataOffset, pageID); err != nil {
 		return fmt.Errorf("failed to write new data: %w", err)
 	}
@@ -151,32 +160,3 @@ func (DB *DB) SelectAll() (map[string]string, error) {
 	}
 	return data, nil
 }
-
-// Trying to test out if DB write work on secound time
-// I don't think it does so I want to what DB is
-func (DB *DB) WriteSix() {
-	fmt.Println("DB:", DB.File)
-	if err := DB.WriteBytes([]byte{5}, 0, uint32(2)); err != nil {
-		fmt.Println("failed to write 9")
-	}
-}
-
-// Note this will chagne as I put B trees in
-// func (DB *DB) Create() error {
-// 	numOfFiles := 3
-// 	created, err := beenCreated(numOfFiles)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if created == true {
-// 		return nil
-// 	}
-// 	if err := DB.CreatePage(MetadataPage); err != nil {
-// 		return err
-// 	}
-// 	// DB.CreatePage(RoutingPage)
-// 	if err := DB.CreatePage(DataPage); err != nil {
-// 		return err
-// 	}
-// 	return nil
-// }

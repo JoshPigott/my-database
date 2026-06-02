@@ -62,7 +62,6 @@ func formatMetadata(metadataBytes []byte) metadata {
 
 func (DB *DB) updateMetadata(metadata metadata) error {
 	buf := createMetadataBuffer(metadata)
-	fmt.Println("Updating metadata")
 	if err := DB.WriteBytes(buf, pageMetadataSize, metadataPageID); err != nil {
 		return err
 	}

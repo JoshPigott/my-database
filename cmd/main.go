@@ -15,16 +15,17 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	for i := 0; i < 400; i++ {
+	for i := 5; i < 9; i++ {
 		theString := strconv.Itoa(i)
 		theValue := theString + theString
 		if err := DB.AddToPage(theString, theValue); err != nil {
 			fmt.Println("failed to add to page:", err)
 		}
 	}
-	DB.Delete("270")
-	DB.WriteSix()
-	lookAtFile()
+	DB.AddToPage("a", "67")
+	// DB.Delete("1")
+	// lookAtFile()
+	lookAtData()
 	if err := DB.Close(); err != nil {
 		fmt.Println(err)
 	}
@@ -58,6 +59,10 @@ func lookAtFile() {
 		fmt.Println(bytes[i*4096 : (i+1)*4096])
 	}
 	// fmt.Println(bytes)
+
+}
+
+func lookAtData() {
 	data, err := DB.SelectAll()
 	if err != nil {
 		fmt.Println(err)
@@ -67,24 +72,3 @@ func lookAtFile() {
 		fmt.Println("key:", key, "value:", value)
 	}
 }
-
-// Test small way untill it breaks
-// Like adding more slowy
-
-// if err := DB.AddToPage("6789", "9876"); err != nil {
-// 	fmt.Println(err)
-// }
-// if err := DB.Delete("12"); err != nil {
-// 	fmt.Println(err)
-// }
-// data, err := DB.SelectAll()
-// if err != nil {
-// 	fmt.Println(err)
-// }
-// for key, value := range data {
-// 	fmt.Println("key:", key, "value:", value)
-// }
-
-// if err := DB.AddToPage("6.7", "onetwo"); err != nil {
-// 	fmt.Println(err)
-// }
