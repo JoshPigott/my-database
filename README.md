@@ -31,7 +31,7 @@ Each page size is 4096 bytes or 4KB
  the need for seraching the page/s to find a where a key slot is
 - metadata
     - page type (MetadataPage)
-    - numslots 
+    - numSlots 
     - freeSpaceStart
     - freeSpaceEnd
 - routes
@@ -41,7 +41,7 @@ Each page size is 4096 bytes or 4KB
 **Data / leaf node struture**
 - metadata
     - page type (DataPage)
-    - numslots 
+    - numSlots 
     - freeSpaceStart
     - freeSpaceEnd
 - slots

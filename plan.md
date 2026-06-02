@@ -38,19 +38,6 @@ Phase 6 — Simple query engine
 Phase 7 — Transactions (hard but important)
 Phase 8 — Indexes
 
-Before b trees 
-- WAL (append-only log) (did i just delete this lol)
-- DB metadata page - page IDs
+Maybe I should update docs at some point
 
-
-Add metadata page
-Add ReadPage(pageID)
-Add WritePage(pageID)
-Support allocating new pages
-Then start B-tree splits/routing pages
-
-
-Firgure out how muilplte pages are linked
-Like with PageID linking to an offset or how
-
-Not free pages does not quite work right atm
+But  B tree package next

@@ -65,3 +65,13 @@ func getValue(pageBytes []byte, valueStart int, valueLength int) string {
 	value := string(valueBytes)
 	return value
 }
+
+// Gets page offset for the data
+func getDataOffset(freeSpace int, dataSize int, numslots uint16) int {
+	totalSlotSize := int(numslots) * slotSize
+	totalSlotOffset := totalSlotSize + pageMetadataSize
+
+	dataStart := totalSlotOffset + freeSpace
+	newDataOffset := dataStart - dataSize
+	return newDataOffset
+}

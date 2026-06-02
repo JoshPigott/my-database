@@ -6,21 +6,25 @@ import (
 	"io"
 )
 
-// Read page to get the data in the page
 func (DB *DB) readPage(pageID uint32) ([]record, error) {
+	_, _, dataRecords, err := DB.readFullPage(pageID)
+	return dataRecords, err
+}
+
+// Read page to get the data in the page
+func (DB *DB) readFullPage(pageID uint32) ([]byte, []slot, []record, error) {
 	pageOffSet := getPageOffset(pageID)
 	pageBytes := make([]byte, pageSize)
 	if _, err := DB.File.Seek(pageOffSet, io.SeekStart); err != nil {
-		return []record{}, fmt.Errorf("failed to read file: %w", err)
+		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed to read file: %w", err)
 	}
 	if _, err := DB.File.Read(pageBytes); err != nil {
-		return []record{}, fmt.Errorf("failed to read file: %w", err)
+		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed to read file: %w", err)
 	}
 	pageMetadata := formatPageMetadata(pageBytes)
 	slots := formatSlots(pageBytes, pageMetadata)
 	dataRecords := readData(pageBytes, slots)
-	// fmt.Println("dataRecords:", dataRecords)
-	return dataRecords, nil
+	return pageBytes, slots, dataRecords, nil
 }
 
 // Write new page at the end of the file
