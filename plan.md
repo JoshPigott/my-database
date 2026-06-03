@@ -41,3 +41,50 @@ Phase 8 — Indexes
 Maybe I should update docs at some point
 
 But  B tree package next
+
+Could be good to watch
+https://www.youtube.com/watch?v=09E-tVAUqQw&pp=ygURYisgdHJlZSBleHBsYWluZWQ%3D
+
+To implement B trees 
+I will just look at page insertion
+And worry about deletion later
+
+
+Insertion flow
+Search
+↓
+Insert
+↓
+Split
+↓
+Range scan (leaf links)
+↓
+Pages / disk
+↓
+Delete
+
+Deletion flow
+Delete key
+↓
+Node underflow?
+↓
+Borrow from sibling
+↓
+Update parent
+↓
+Can't borrow?
+↓
+Merge nodes
+↓
+Parent underflow?
+↓
+Repeat upward
+
+b - tree
+It is just like a binary tree I think but with muilplte key on one node
+So maybe just make a b tree to start off with 
+So work your way down untill leaf node then try and add value in order
+If is does not fit, split the tree and the parent becomes the key
+but the key also stay in the leaf as well
+
+With deletion is b trees
