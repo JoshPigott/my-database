@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bubbly-database/internal/btrees"
 	"bubbly-database/internal/database"
 	"fmt"
 	"io"
@@ -10,6 +11,16 @@ import (
 var DB *database.DB
 
 func main() {
+	btrees.Insert(10)
+	btrees.Insert(4)
+	btrees.Insert(1)
+	btrees.Insert(17)
+	btrees.Insert(11)
+	btrees.Insert(8)
+	fmt.Print("In tree: ", btrees.InTree(11))
+}
+
+func testDatabase() {
 	var err error
 	DB, err = database.Open()
 	if err != nil {
