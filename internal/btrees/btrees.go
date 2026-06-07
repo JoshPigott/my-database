@@ -35,6 +35,52 @@ func newNode(isLeaf bool) *node {
 	}
 }
 
+// A wrapper for insert to handle spliting of the root
+func (t *BTree) Insert(key int) {
+	splitResult, left, right := insert(t.root, key)
+	if splitResult != nil {
+		newRoot := newNode(false)
+		newRoot.addKey(*splitResult, left, right)
+		t.root = newRoot
+	}
+}
+
+// Returns if key in tree and key
+func (t *BTree) FindKey(key int) (*node, bool) {
+	n := t.root
+	if slices.Contains(n.keys, key) {
+		return n, true
+	}
+	i := 0
+	for n.leaf == false && i < 5 {
+		n = n.findChild(key)
+		if slices.Contains(n.keys, key) {
+			return n, true
+		}
+		i += 1
+	}
+	return nil, false
+}
+
+/*
+Recursively calls itself to create a call stack,
+adds key at leaf, and works back up splitting if needed
+*/
+func insert(n *node, key int) (*int, *node, *node) {
+	if n.leaf {
+		splitResult, left, right := n.addKey(key, nil, nil)
+		return splitResult, left, right
+	}
+
+	child := n.findChild(key)
+	splitResult, left, right := insert(child, key)
+
+	if splitResult != nil {
+		splitResult, left, right = n.addKey(*splitResult, left, right)
+	}
+	return splitResult, left, right
+}
+
 func (n *node) addKey(num int, left *node, right *node) (*int, *node, *node) {
 	var splitResult *int
 	// Checks if key in node alreadyn
@@ -120,36 +166,6 @@ func (n *node) findChild(key int) *node {
 		}
 	}
 	return n.children[len(n.keys)]
-}
-
-/*
-Recursively calls itself to create a call stack,
-adds key at leaf, and works back up splitting if needed
-*/
-func insert(n *node, key int) (*int, *node, *node) {
-	if n.leaf {
-		splitResult, left, right := n.addKey(key, nil, nil)
-		return splitResult, left, right
-	}
-
-	child := n.findChild(key)
-	splitResult, left, right := insert(child, key)
-
-	if splitResult != nil {
-		splitResult, left, right = n.addKey(*splitResult, left, right)
-	}
-	return splitResult, left, right
-}
-
-// A wrapper for insert to handle spliting of the root
-func (t *BTree) Insert(key int) {
-	splitResult, left, right := insert(t.root, key)
-
-	if splitResult != nil {
-		newRoot := newNode(false)
-		newRoot.addKey(*splitResult, left, right)
-		t.root = newRoot
-	}
 }
 
 // Prints out the btree structure for debugging purposes
