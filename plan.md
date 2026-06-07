@@ -88,3 +88,9 @@ If is does not fit, split the tree and the parent becomes the key
 but the key also stay in the leaf as well
 
 With deletion is b trees
+
+
+I want to test the speed of some funcation at some point
+
+
+So I want to add a child right.
