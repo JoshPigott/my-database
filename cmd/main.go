@@ -12,8 +12,10 @@ var DB *database.DB
 
 func main() {
 	t := btrees.NewBTree()
-	t.Insert(73)
-	//t.Insert(12)
+	t.Insert(59)
+	node, inTree := t.FindKey(66)
+	fmt.Println("node:", node)
+	fmt.Println("inTree:", inTree)
 	//t.CheckStructure(2)
 }
 
