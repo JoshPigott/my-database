@@ -11,13 +11,10 @@ import (
 var DB *database.DB
 
 func main() {
-	btrees.Insert(10)
-	btrees.Insert(4)
-	btrees.Insert(1)
-	btrees.Insert(17)
-	btrees.Insert(11)
-	btrees.Insert(8)
-	fmt.Print("In tree: ", btrees.InTree(11))
+	t := btrees.NewBTree()
+	t.Insert(73)
+	//t.Insert(12)
+	//t.CheckStructure(2)
 }
 
 func testDatabase() {
