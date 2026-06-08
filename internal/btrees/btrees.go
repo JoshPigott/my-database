@@ -83,8 +83,8 @@ func insert(n *node, key int) (*int, *node, *node) {
 
 func (n *node) addKey(num int, left *node, right *node) (*int, *node, *node) {
 	var splitResult *int
-	// Checks if key in node alreadyn
-	if slices.Contains(n.keys, num) {
+	// Checks if key in node already
+	if n.leaf == true && slices.Contains(n.keys, num) {
 		return nil, nil, nil
 	}
 
@@ -136,13 +136,20 @@ func (n *node) split() (*int, *node, *node) {
 	right := newNode(true)
 
 	middlekeyIndex := maxKeys / 2
-	rightStart := middlekeyIndex + 1
 
 	// Updates keys
 	left.keys = make([]int, len(n.keys[:middlekeyIndex]))
-	right.keys = make([]int, len(n.keys[rightStart:]))
 	copy(left.keys, n.keys[:middlekeyIndex])
-	copy(right.keys, n.keys[rightStart:])
+	// If leaf spilt right key stays in leaf
+	if n.leaf == false {
+		rightStart := middlekeyIndex + 1
+		right.keys = make([]int, len(n.keys[rightStart:]))
+		copy(right.keys, n.keys[rightStart:])
+	} else {
+		rightStart := middlekeyIndex
+		right.keys = make([]int, len(n.keys[rightStart:]))
+		copy(right.keys, n.keys[rightStart:])
+	}
 
 	// Updates children
 	for i := 0; i < len(n.children); i++ {

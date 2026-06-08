@@ -80,17 +80,4 @@ Parent underflow?
 ↓
 Repeat upward
 
-b - tree
-It is just like a binary tree I think but with muilplte key on one node
-So maybe just make a b tree to start off with 
-So work your way down untill leaf node then try and add value in order
-If is does not fit, split the tree and the parent becomes the key
-but the key also stay in the leaf as well
-
-With deletion is b trees
-
-
-I want to test the speed of some funcation at some point
-
-
-So I want to add a child right.
+Plan now linked list in leaf node of b+ tree
