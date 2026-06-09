@@ -19,6 +19,7 @@ type BTree struct {
 type node struct {
 	keys     []int
 	children []*node
+	Next     *node
 	leaf     bool
 }
 
@@ -132,14 +133,12 @@ func (n *node) addChildern(left *node, right *node) {
 
 // splits node into two new nodes
 func (n *node) split() (*int, *node, *node) {
-	left := newNode(true)
 	right := newNode(true)
 
 	middlekeyIndex := maxKeys / 2
+	middlekey := &n.keys[middlekeyIndex]
 
 	// Updates keys
-	left.keys = make([]int, len(n.keys[:middlekeyIndex]))
-	copy(left.keys, n.keys[:middlekeyIndex])
 	// If leaf spilt right key stays in leaf
 	if n.leaf == false {
 		rightStart := middlekeyIndex + 1
@@ -150,19 +149,26 @@ func (n *node) split() (*int, *node, *node) {
 		right.keys = make([]int, len(n.keys[rightStart:]))
 		copy(right.keys, n.keys[rightStart:])
 	}
+	n.keys = n.keys[:middlekeyIndex]
 
 	// Updates children
-	for i := 0; i < len(n.children); i++ {
-		if i < len(n.children)/2 {
-			left.children = append(left.children, n.children[i])
-			left.leaf = false
-		} else {
-			right.children = append(right.children, n.children[i])
+	if len(n.children) > middlekeyIndex {
+		rightChildStart := middlekeyIndex + 1
+		right.children = append(right.children, n.children[rightChildStart:]...)
+		n.children = n.children[:rightChildStart]
+		if len(right.children) > 0 {
 			right.leaf = false
+		}
+		if len(n.children) > 0 {
+			n.leaf = false
 		}
 	}
 
-	return &n.keys[middlekeyIndex], left, right
+	// Updates next node
+	right.Next = n.Next
+	n.Next = right
+
+	return middlekey, n, right
 }
 
 // Find next child of current node
