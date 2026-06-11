@@ -46,38 +46,20 @@ Could be good to watch
 https://www.youtube.com/watch?v=09E-tVAUqQw&pp=ygURYisgdHJlZSBleHBsYWluZWQ%3D
 
 To implement B trees 
-I will just look at page insertion
-And worry about deletion later
+ 
+
+## deletion logic
+So there are three cases to think about
+
+1. simple case leaf has enough key so just delete
+
+2. Borrow from a silbling left or right (this includes updating speartores)
+
+3. No silbings have any keys so you have to merge nodes
+
+plus update the linked list after
 
 
-Insertion flow
-Search
-↓
-Insert
-↓
-Split
-↓
-Range scan (leaf links)
-↓
-Pages / disk
-↓
-Delete
+I think there will be some edge cases when the node gets really small
 
-Deletion flow
-Delete key
-↓
-Node underflow?
-↓
-Borrow from sibling
-↓
-Update parent
-↓
-Can't borrow?
-↓
-Merge nodes
-↓
-Parent underflow?
-↓
-Repeat upward
-
-Plan now linked list in leaf node of b+ tree
+Look at the linked list

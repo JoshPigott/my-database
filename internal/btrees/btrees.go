@@ -54,7 +54,7 @@ func (t *BTree) FindKey(key int) (*node, bool) {
 	}
 	i := 0
 	for n.leaf == false && i < 5 {
-		n = n.findChild(key)
+		n, _ = n.findChild(key)
 		if slices.Contains(n.keys, key) {
 			return n, true
 		}
@@ -73,7 +73,7 @@ func insert(n *node, key int) (*int, *node, *node) {
 		return splitResult, left, right
 	}
 
-	child := n.findChild(key)
+	child, _ := n.findChild(key)
 	splitResult, left, right := insert(child, key)
 
 	if splitResult != nil {
@@ -171,14 +171,14 @@ func (n *node) split() (*int, *node, *node) {
 	return middlekey, n, right
 }
 
-// Find next child of current node
-func (n *node) findChild(key int) *node {
+// Find next child of current node and it index
+func (n *node) findChild(key int) (*node, int) {
 	for i := range len(n.keys) {
 		if key < n.keys[i] {
-			return n.children[i]
+			return n.children[i], i
 		}
 	}
-	return n.children[len(n.keys)]
+	return n.children[len(n.keys)], len(n.keys)
 }
 
 // Prints out the btree structure for debugging purposes
@@ -198,4 +198,17 @@ func (t *BTree) CheckStructure(num int) {
 		}
 	}
 	println()
+}
+
+// Used for debuging
+func (t *BTree) PrintLinkedList() {
+	node := t.root
+	for node.leaf != true {
+		node = node.children[0]
+	}
+	for node.Next != nil {
+		fmt.Println(node.keys)
+		node = node.Next
+	}
+	fmt.Println(node.keys)
 }
