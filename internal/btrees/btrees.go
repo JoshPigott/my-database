@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 )
 
 const (
@@ -17,7 +18,7 @@ type BTree struct {
 }
 
 type node struct {
-	keys         []int
+	keys         []string
 	children     []*node
 	KeyLocations []*KeyLocation
 	Next         *node
@@ -43,7 +44,7 @@ func newNode(isLeaf bool) *node {
 }
 
 // A wrapper for insert to handle spliting of the root
-func (t *BTree) Insert(key int, keyLocation *KeyLocation) {
+func (t *BTree) Insert(key string, keyLocation *KeyLocation) {
 	splitResult, left, right := insert(t.root, key, keyLocation)
 	if splitResult != nil {
 		newRoot := newNode(false)
@@ -53,7 +54,7 @@ func (t *BTree) Insert(key int, keyLocation *KeyLocation) {
 }
 
 // Find the location of the key return keyLocation and if found
-func (t *BTree) FindKeyLocation(key int) (KeyLocation, bool) {
+func (t *BTree) FindKeyLocation(key string) (KeyLocation, bool) {
 	n, inTree := t.FindNode(key)
 	if !inTree {
 		return KeyLocation{}, false
@@ -64,7 +65,7 @@ func (t *BTree) FindKeyLocation(key int) (KeyLocation, bool) {
 }
 
 // Returns if key in tree and key
-func (t *BTree) FindNode(key int) (*node, bool) {
+func (t *BTree) FindNode(key string) (*node, bool) {
 	n := t.root
 	for {
 		if n.leaf {
@@ -82,7 +83,7 @@ func (t *BTree) FindNode(key int) (*node, bool) {
 Recursively calls itself to create a call stack,
 adds key at leaf, and works back up splitting if needed
 */
-func insert(n *node, key int, keyLocation *KeyLocation) (*int, *node, *node) {
+func insert(n *node, key string, keyLocation *KeyLocation) (*string, *node, *node) {
 	if n.leaf {
 		splitResult, left, right := n.addKey(key, nil, nil, keyLocation)
 		return splitResult, left, right
@@ -97,21 +98,21 @@ func insert(n *node, key int, keyLocation *KeyLocation) (*int, *node, *node) {
 	return splitResult, left, right
 }
 
-func (n *node) addKey(num int, left *node, right *node, keyLocation *KeyLocation) (*int, *node, *node) {
-	var splitResult *int
+func (n *node) addKey(key string, left *node, right *node, keyLocation *KeyLocation) (*string, *node, *node) {
+	var splitResult *string
 	// Checks if key in node already
-	if n.leaf == true && slices.Contains(n.keys, num) {
+	if n.leaf == true && slices.Contains(n.keys, key) {
 		return nil, nil, nil
 	}
 
 	i := sort.Search(len(n.keys), func(i int) bool {
-		return num < n.keys[i]
+		return strings.Compare(key, n.keys[i]) < 0
 	})
 
 	// Add key
-	n.keys = append(n.keys, 0)
+	n.keys = append(n.keys, "")
 	copy(n.keys[i+1:], n.keys[i:])
-	n.keys[i] = num
+	n.keys[i] = key
 
 	// Add key location
 	n.KeyLocations = append(n.KeyLocations, nil)
@@ -138,7 +139,7 @@ func (n *node) addChildern(left *node, right *node) {
 	}
 	leftChildKey := left.keys[len(left.keys)-1]
 	i := sort.Search(len(n.keys), func(i int) bool {
-		return leftChildKey < n.keys[i]
+		return strings.Compare(leftChildKey, n.keys[i]) < 0
 	})
 
 	// Insert children
@@ -153,7 +154,7 @@ func (n *node) addChildern(left *node, right *node) {
 }
 
 // splits node into two new nodes
-func (n *node) split() (*int, *node, *node) {
+func (n *node) split() (*string, *node, *node) {
 	right := newNode(true)
 
 	middlekeyIndex := maxKeys / 2
@@ -163,11 +164,11 @@ func (n *node) split() (*int, *node, *node) {
 	// If leaf spilt right key stays in leaf
 	if n.leaf == false {
 		rightStart := middlekeyIndex + 1
-		right.keys = make([]int, len(n.keys[rightStart:]))
+		right.keys = make([]string, len(n.keys[rightStart:]))
 		copy(right.keys, n.keys[rightStart:])
 	} else {
 		rightStart := middlekeyIndex
-		right.keys = make([]int, len(n.keys[rightStart:]))
+		right.keys = make([]string, len(n.keys[rightStart:]))
 		copy(right.keys, n.keys[rightStart:])
 	}
 	n.keys = n.keys[:middlekeyIndex]
@@ -201,9 +202,9 @@ func (n *node) split() (*int, *node, *node) {
 }
 
 // Find next child of current node and it index
-func (n *node) findChild(key int) (*node, int) {
+func (n *node) findChild(key string) (*node, int) {
 	for i := range len(n.keys) {
-		if key < n.keys[i] {
+		if strings.Compare(key, n.keys[i]) < 0 {
 			return n.children[i], i
 		}
 	}
@@ -211,8 +212,8 @@ func (n *node) findChild(key int) (*node, int) {
 }
 
 // Prints out the btree structure for debugging purposes
-func (t *BTree) CheckStructure(num int) {
-	fmt.Println("Number:", num)
+func (t *BTree) CheckStructure(number int) {
+	fmt.Println("Number:", number)
 	fmt.Println("t.root.keys:", t.root.keys)
 	for i := range len(t.root.children) {
 		stringCode := fmt.Sprintf("t.root.children[%d].keys:", i)

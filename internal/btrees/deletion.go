@@ -5,7 +5,7 @@ import (
 )
 
 // Handles making the tree shallower
-func (t *BTree) Delete(key int) {
+func (t *BTree) Delete(key string) {
 	t.root.delete(key)
 
 	if len(t.root.keys) == 0 && len(t.root.children) > 0 {
@@ -18,7 +18,7 @@ Build a call stack to locate the leaf node.
 Delete the key from the leaf node.
 Rebalance the tree if necessary.
 */
-func (n *node) delete(key int) {
+func (n *node) delete(key string) {
 	if n.leaf == true {
 		if !slices.Contains(n.keys, key) {
 			return
@@ -65,7 +65,7 @@ func (n *node) delete(key int) {
 
 // Borrow key right most key from left node to rebalance tree
 func (n *node) borrowFromLeft(i int) {
-	var separatorKey int
+	var separatorKey string
 	left := n.children[i-1]
 	borrowedKey := left.keys[len(left.keys)-1]
 	borrowedKeyLocation := left.KeyLocations[len(left.KeyLocations)-1]
