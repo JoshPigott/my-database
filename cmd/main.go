@@ -11,6 +11,10 @@ import (
 var DB *database.DB
 
 func main() {
+	testDatabase()
+}
+
+func testBTreee() {
 	var entries = []struct {
 		key    string
 		pageID uint32

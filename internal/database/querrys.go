@@ -9,10 +9,6 @@ import (
 // This const is just for testing
 const testPageID uint32 = 2
 
-// THere are going to be querrys that the user can send
-
-// Like think I should add in the next page
-
 type DB struct {
 	File *os.File
 }
@@ -80,24 +76,16 @@ func (DB *DB) AddToPage(key string, value string) error {
 		freeSpace = int(pageMetadata.freeSpaceEnd - pageMetadata.freeSpaceStart)
 	}
 
-	// Get page data
-	pageBytes, _, records, err := DB.readFullPage(pageID)
-	if err != nil {
-		return fmt.Errorf("failed to get page info: %w", err)
-	}
-	slotPlacment := calculateSlotPlacement(key, records)
-
 	// Compute offsets
-	slotOffset := getSlotOffset(slotPlacment)
+	slotOffset := getSlotOffset(pageMetadata)
 	newDataOffset := getDataOffset(freeSpace, dataSize, pageMetadata.numSlots)
 
 	// Compute buffers
 	slotBuf := getSlotBuffer(uint16(newDataOffset), uint16(dataSize), slotNormal)
-	slotReorderBuf := getSlotReorderBuf(pageBytes, slotBuf, int(pageMetadata.numSlots), slotPlacment)
 	dataBuf := getDataBuffer(key, value, dataSize)
 
 	// Update file
-	if err := DB.WriteBytes(slotReorderBuf, slotOffset, pageID); err != nil {
+	if err := DB.WriteBytes(slotBuf, slotOffset, pageID); err != nil {
 		return fmt.Errorf("failed to write slot: %w", err)
 	}
 	if err := DB.WriteBytes(dataBuf, newDataOffset, pageID); err != nil {

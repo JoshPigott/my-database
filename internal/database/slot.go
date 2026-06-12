@@ -2,7 +2,6 @@ package database
 
 import (
 	"encoding/binary"
-	"strings"
 )
 
 const (
@@ -45,42 +44,7 @@ func formatSlots(pageBytes []byte, pageMetadata pageMetadata) []slot {
 	return formatedSlots
 }
 
-// calculates slot placement by connverting
-func calculateSlotPlacement(key string, records []record) int {
-	low := 0
-	high := len(records) - 1
-	for low <= high {
-		midPoint := low + (high-low)/2
-		record := records[midPoint]
-		if strings.Compare(key, record.key) < 0 {
-			high = midPoint - 1
-		} else {
-			low = midPoint + 1
-		}
-	}
-	return low
-}
-
-// Creates a buf containing the new and shifted slots
-func getSlotReorderBuf(pageBytes []byte, slotBuf []byte, oldNumSlots int, slotPlacment int) []byte {
-	numShiftedSlots := oldNumSlots - slotPlacment
-	shiftedSlotsSize := numShiftedSlots * slotSize
-	bufSize := shiftedSlotsSize + slotSize
-
-	shiftedSlotsStartIndex := pageMetadataSize + (slotPlacment * slotSize)
-	shiftedSlotsEndIndex := shiftedSlotsStartIndex + shiftedSlotsSize
-	buf := make([]byte, bufSize)
-
-	copy(buf, slotBuf)
-
-	shiftSlotBytes := pageBytes[shiftedSlotsStartIndex:shiftedSlotsEndIndex]
-	copy(buf[slotSize:], shiftSlotBytes)
-	return buf
-}
-
 // Get offset for new and shift slot buf
-func getSlotOffset(slotsBeforeNewslot int) int {
-	slotsBeforeNewslotSize := slotsBeforeNewslot * slotSize
-	slotOffset := slotsBeforeNewslotSize + pageMetadataSize
-	return slotOffset
+func getSlotOffset(pageMetadata pageMetadata) int {
+	return pageMetadataSize + int(pageMetadata.numSlots)*slotSize
 }
