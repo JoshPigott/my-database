@@ -17,10 +17,16 @@ type BTree struct {
 }
 
 type node struct {
-	keys     []int
-	children []*node
-	Next     *node
-	leaf     bool
+	keys         []int
+	children     []*node
+	KeyLocations []*KeyLocation
+	Next         *node
+	leaf         bool
+}
+
+type KeyLocation struct {
+	PageID uint32
+	SlotID uint32
 }
 
 func NewBTree() *BTree {
@@ -37,52 +43,61 @@ func newNode(isLeaf bool) *node {
 }
 
 // A wrapper for insert to handle spliting of the root
-func (t *BTree) Insert(key int) {
-	splitResult, left, right := insert(t.root, key)
+func (t *BTree) Insert(key int, keyLocation *KeyLocation) {
+	splitResult, left, right := insert(t.root, key, keyLocation)
 	if splitResult != nil {
 		newRoot := newNode(false)
-		newRoot.addKey(*splitResult, left, right)
+		newRoot.addKey(*splitResult, left, right, nil)
 		t.root = newRoot
 	}
 }
 
+// Find the location of the key return keyLocation and if found
+func (t *BTree) FindKeyLocation(key int) (KeyLocation, bool) {
+	n, inTree := t.FindNode(key)
+	if !inTree {
+		return KeyLocation{}, false
+	}
+	// I need to find the index where the key happens
+	i := slices.Index(n.keys, key)
+	return *n.KeyLocations[i], true
+}
+
 // Returns if key in tree and key
-func (t *BTree) FindKey(key int) (*node, bool) {
+func (t *BTree) FindNode(key int) (*node, bool) {
 	n := t.root
-	if slices.Contains(n.keys, key) {
-		return n, true
-	}
-	i := 0
-	for n.leaf == false && i < 5 {
-		n, _ = n.findChild(key)
-		if slices.Contains(n.keys, key) {
-			return n, true
+	for {
+		if n.leaf {
+			if slices.Contains(n.keys, key) {
+				return n, true
+			} else {
+				return nil, false
+			}
 		}
-		i += 1
+		n, _ = n.findChild(key)
 	}
-	return nil, false
 }
 
 /*
 Recursively calls itself to create a call stack,
 adds key at leaf, and works back up splitting if needed
 */
-func insert(n *node, key int) (*int, *node, *node) {
+func insert(n *node, key int, keyLocation *KeyLocation) (*int, *node, *node) {
 	if n.leaf {
-		splitResult, left, right := n.addKey(key, nil, nil)
+		splitResult, left, right := n.addKey(key, nil, nil, keyLocation)
 		return splitResult, left, right
 	}
 
 	child, _ := n.findChild(key)
-	splitResult, left, right := insert(child, key)
+	splitResult, left, right := insert(child, key, keyLocation)
 
 	if splitResult != nil {
-		splitResult, left, right = n.addKey(*splitResult, left, right)
+		splitResult, left, right = n.addKey(*splitResult, left, right, nil)
 	}
 	return splitResult, left, right
 }
 
-func (n *node) addKey(num int, left *node, right *node) (*int, *node, *node) {
+func (n *node) addKey(num int, left *node, right *node, keyLocation *KeyLocation) (*int, *node, *node) {
 	var splitResult *int
 	// Checks if key in node already
 	if n.leaf == true && slices.Contains(n.keys, num) {
@@ -93,9 +108,15 @@ func (n *node) addKey(num int, left *node, right *node) (*int, *node, *node) {
 		return num < n.keys[i]
 	})
 
+	// Add key
 	n.keys = append(n.keys, 0)
 	copy(n.keys[i+1:], n.keys[i:])
 	n.keys[i] = num
+
+	// Add key location
+	n.KeyLocations = append(n.KeyLocations, nil)
+	copy(n.KeyLocations[i+1:], n.KeyLocations[i:])
+	n.KeyLocations[i] = keyLocation
 
 	n.addChildern(left, right)
 	left = nil
@@ -150,6 +171,14 @@ func (n *node) split() (*int, *node, *node) {
 		copy(right.keys, n.keys[rightStart:])
 	}
 	n.keys = n.keys[:middlekeyIndex]
+
+	// Updates keyLocation
+	if n.leaf == true {
+		rightStart := middlekeyIndex
+		right.KeyLocations = make([]*KeyLocation, len(n.KeyLocations[rightStart:]))
+		copy(right.KeyLocations, n.KeyLocations[rightStart:])
+		n.KeyLocations = n.KeyLocations[:middlekeyIndex]
+	}
 
 	// Updates children
 	if len(n.children) > middlekeyIndex {

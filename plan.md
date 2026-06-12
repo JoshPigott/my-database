@@ -48,18 +48,10 @@ https://www.youtube.com/watch?v=09E-tVAUqQw&pp=ygURYisgdHJlZSBleHBsYWluZWQ%3D
 To implement B trees 
  
 
-## deletion logic
-So there are three cases to think about
 
-1. simple case leaf has enough key so just delete
+## Connection between b+trees and pages
+I lowkey think the next step may just be chaging the key from int to assic numbers
 
-2. Borrow from a silbling left or right (this includes updating speartores)
+Another thing I need to do is add record to my node it is like a parrel slice to keys
 
-3. No silbings have any keys so you have to merge nodes
-
-plus update the linked list after
-
-
-I think there will be some edge cases when the node gets really small
-
-Look at the linked list
+I think I will need to make a funcation called find location or somthing like that
