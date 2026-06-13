@@ -11,6 +11,6 @@ func BenchmarkInerst(b *testing.B) {
 			SlotID: 9,
 			PageID: 3,
 		}
-		t.Insert(73, &keyLocation)
+		t.Insert("A", &keyLocation)
 	}
 }

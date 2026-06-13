@@ -50,8 +50,6 @@ To implement B trees
 
 
 ## Connection between b+trees and pages
-I lowkey think the next step may just be chaging the key from int to assic numbers
-
-Another thing I need to do is add record to my node it is like a parrel slice to keys
-
 I think I will need to make a funcation called find location or somthing like that
+
+Now removed sort slots and just have slotIDs
