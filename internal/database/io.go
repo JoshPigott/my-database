@@ -95,6 +95,38 @@ func (DB *DB) readMetadata() (metadata, error) {
 	return metadata, nil
 }
 
+// Reads a particular slot
+func (DB *DB) readSlot(pageID uint32, slotID uint16) ([]byte, error) {
+	slotBytes := make([]byte, slotID)
+
+	pageOffSet := getPageOffset(pageID)
+	slotOffset := pageMetadataSize + (int64(slotID) * int64(slotSize))
+	totalOffset := pageOffSet + slotOffset
+
+	if _, err := DB.File.Seek(totalOffset, io.SeekStart); err != nil {
+		return []byte{}, fmt.Errorf("failed to read slot: %w", err)
+	}
+	if _, err := DB.File.Read(slotBytes); err != nil {
+		return []byte{}, fmt.Errorf("failed to read slot: %w", err)
+	}
+	return slotBytes, nil
+}
+
+// Gets bytes of a particular entry of data
+func (DB *DB) readData(slot slot, pageID uint32) ([]byte, error) {
+	dataBytes := make([]byte, slot.length)
+	pageOffSet := getPageOffset(pageID)
+	totalOffset := pageOffSet + int64(slot.offset)
+
+	if _, err := DB.File.Seek(totalOffset, io.SeekStart); err != nil {
+		return []byte{}, fmt.Errorf("failed to read slot: %w", err)
+	}
+	if _, err := DB.File.Read(dataBytes); err != nil {
+		return []byte{}, fmt.Errorf("failed to read slot: %w", err)
+	}
+	return dataBytes, nil
+}
+
 func getPageOffset(pageID uint32) int64 {
 	offset := (int64(pageID) - 1) * pageSize
 	return offset

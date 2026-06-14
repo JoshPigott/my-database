@@ -50,6 +50,6 @@ To implement B trees
 
 
 ## Connection between b+trees and pages
-I think I will need to make a funcation called find location or somthing like that
+Finsh up with testing 
 
-Now removed sort slots and just have slotIDs
+Then I think maybe write btrees to disk

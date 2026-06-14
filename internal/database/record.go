@@ -16,13 +16,23 @@ const (
 	valueLengthStorageSize int = 2
 )
 
+// Read a data entry and returns the key and value
+func readEntry(dataBytes []byte) (string, string) {
+	keyLength := getKeyLength(dataBytes)
+	valueLength := getValueLength(dataBytes)
+	key, valueStart := getKey(dataBytes, keyLength)
+	value := getValue(dataBytes, valueStart, valueLength)
+	return key, value
+}
+
+// Reads a page full of data
 func readData(pageBytes []byte, slots []slot) []record {
 	dataRecords := []record{}
 	for i, slot := range slots {
-		keyLength, valueLengthStart := getKeyLength(pageBytes, int(slot.offset))
-		valueLength, keyStart := getValueLength(pageBytes, valueLengthStart)
-		key, valueStart := getKey(pageBytes, keyStart, keyLength)
-		value := getValue(pageBytes, valueStart, valueLength)
+		dataStart := slot.offset
+		dataEnd := slot.length + dataStart
+		dataBytes := pageBytes[dataStart:dataEnd]
+		key, value := readEntry(dataBytes)
 		dataRecord := record{
 			slotIndex: i,
 			key:       key,
@@ -35,33 +45,32 @@ func readData(pageBytes []byte, slots []slot) []record {
 }
 
 // Gets key length from the page bytes
-func getKeyLength(pageBytes []byte, slot int) (int, int) {
-	keyLengthStart := slot
-	keyLengthEnd := slot + keyLengthStorageSize
-	keyLengthBytes := pageBytes[keyLengthStart:keyLengthEnd]
+func getKeyLength(dataBytes []byte) int { // Right now I am not getting key length
+	keyLengthBytes := dataBytes[0:keyLengthStorageSize]
 	keyLength := int(binary.BigEndian.Uint16(keyLengthBytes))
-	return keyLength, keyLengthEnd
+	return keyLength
 }
 
 // Get value length from the bytes
-func getValueLength(pageBytes []byte, valueLengthStart int) (int, int) {
-	valueLengthEnd := valueLengthStart + valueLengthStorageSize
-	valueLenghtBytes := pageBytes[valueLengthStart:valueLengthEnd]
+func getValueLength(dataBytes []byte) int {
+	valueLengthEnd := keyLengthStorageSize + valueLengthStorageSize
+	valueLenghtBytes := dataBytes[keyLengthStorageSize:valueLengthEnd]
 	valueLength := int(binary.BigEndian.Uint16(valueLenghtBytes))
-	return valueLength, valueLengthEnd
+	return valueLength
 }
 
 // Get key from the page bytes
-func getKey(pageBytes []byte, keyStart int, keyLength int) (string, int) {
+func getKey(dataBytes []byte, keyLength int) (string, int) {
+	keyStart := keyLengthStorageSize + valueLengthStorageSize
 	keyEnd := keyStart + keyLength
-	keyBytes := pageBytes[keyStart:keyEnd]
+	keyBytes := dataBytes[keyStart:keyEnd]
 	key := string(keyBytes)
 	return key, keyEnd
 }
 
-func getValue(pageBytes []byte, valueStart int, valueLength int) string {
+func getValue(dataBytes []byte, valueStart int, valueLength int) string {
 	valueEnd := valueStart + valueLength
-	valueBytes := pageBytes[valueStart:valueEnd]
+	valueBytes := dataBytes[valueStart:valueEnd]
 	value := string(valueBytes)
 	return value
 }

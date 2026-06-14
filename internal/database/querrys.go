@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bubbly-database/internal/btrees"
 	"encoding/binary"
 	"fmt"
 	"os"
@@ -10,12 +11,14 @@ import (
 const testPageID uint32 = 2
 
 type DB struct {
-	File *os.File
+	File  *os.File
+	BTree *btrees.BTree
 }
 
 func newDatabase(file *os.File) DB {
 	return DB{
-		File: file,
+		File:  file,
+		BTree: btrees.NewBTree(),
 	}
 }
 
@@ -94,6 +97,8 @@ func (DB *DB) AddToPage(key string, value string) error {
 	if err := DB.updatePageMetadata(pageMetadata, dataSize); err != nil {
 		return fmt.Errorf("failed to update metadata")
 	}
+
+	DB.BTree.Insert(key, pageID, pageMetadata.numSlots)
 	return nil
 }
 
@@ -122,6 +127,7 @@ func (DB *DB) Delete(key string) error {
 			DB.WriteBytes(slotFlagBytes, slotFlagOffset, uint32(pageID))
 		}
 	}
+	DB.BTree.Delete(key)
 	return nil
 }
 
@@ -147,4 +153,23 @@ func (DB *DB) SelectAll() (map[string]string, error) {
 		}
 	}
 	return data, nil
+}
+
+// Uses b+tree to select the value returns; value, ifFound, error
+func (DB *DB) Select(key string) (string, bool, error) {
+	pageID, slotID, inTree := DB.BTree.FindKeyLocation(key)
+	if inTree == false {
+		return "", false, nil
+	}
+	slotBytes, err := DB.readSlot(pageID, slotID)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to select value: %w", err)
+	}
+	formatedSlot := formatSlot(slotBytes)
+	dataBytes, err := DB.readData(formatedSlot, pageID)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to select value: %w", err)
+	}
+	_, value := readEntry(dataBytes)
+	return value, true, nil
 }
