@@ -35,7 +35,7 @@ func newDefaultMetadata() metadata {
 }
 
 // Creates a metadata page if none
-func (DB *DB) ensureMetadataPage() error {
+func (Pages *Pages) ensureMetadataPage() error {
 	fileInfo, err := os.Stat(FileName)
 	if err != nil {
 		return fmt.Errorf("failed to check file info: %w", err)
@@ -45,7 +45,7 @@ func (DB *DB) ensureMetadataPage() error {
 		return fmt.Errorf("failed to have vaild pages: %w", err)
 	}
 	if fileInfo.Size() == 0 {
-		DB.createMetadataPage()
+		Pages.createMetadataPage()
 		return nil
 	}
 	return nil
@@ -60,9 +60,9 @@ func formatMetadata(metadataBytes []byte) metadata {
 	}
 }
 
-func (DB *DB) updateMetadata(metadata metadata) error {
+func (Pages *Pages) updateMetadata(metadata metadata) error {
 	buf := createMetadataBuffer(metadata)
-	if err := DB.WriteBytes(buf, pageMetadataSize, metadataPageID); err != nil {
+	if err := Pages.WriteBytes(buf, pageMetadataSize, metadataPageID); err != nil {
 		return err
 	}
 	return nil
@@ -78,8 +78,8 @@ func createMetadataBuffer(metadata metadata) []byte {
 }
 
 // Return the number of pages that should be read
-func (DB *DB) getNumOfPagesToRead() (int, error) {
-	metadata, err := DB.readMetadata()
+func (Pages *Pages) getNumOfPagesToRead() (int, error) {
+	metadata, err := Pages.readMetadata()
 	if err != nil {
 		return 0, fmt.Errorf("failed to read number of pages: %w", err)
 	}
