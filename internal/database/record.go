@@ -12,8 +12,8 @@ type record struct {
 }
 
 const (
-	keyLengthStorageSize   int = 2
-	valueLengthStorageSize int = 2
+	keyLenStorageSize   int = 2
+	valueLenStorageSize int = 2
 )
 
 // Read a data entry and returns the key and value
@@ -46,22 +46,22 @@ func readData(pageBytes []byte, slots []slot) []record {
 
 // Gets key length from the page bytes
 func getKeyLength(dataBytes []byte) int { // Right now I am not getting key length
-	keyLengthBytes := dataBytes[0:keyLengthStorageSize]
+	keyLengthBytes := dataBytes[0:keyLenStorageSize]
 	keyLength := int(binary.BigEndian.Uint16(keyLengthBytes))
 	return keyLength
 }
 
 // Get value length from the bytes
 func getValueLength(dataBytes []byte) int {
-	valueLengthEnd := keyLengthStorageSize + valueLengthStorageSize
-	valueLenghtBytes := dataBytes[keyLengthStorageSize:valueLengthEnd]
+	valueLengthEnd := keyLenStorageSize + valueLenStorageSize
+	valueLenghtBytes := dataBytes[keyLenStorageSize:valueLengthEnd]
 	valueLength := int(binary.BigEndian.Uint16(valueLenghtBytes))
 	return valueLength
 }
 
 // Get key from the page bytes
 func getKey(dataBytes []byte, keyLength int) (string, int) {
-	keyStart := keyLengthStorageSize + valueLengthStorageSize
+	keyStart := keyLenStorageSize + valueLenStorageSize
 	keyEnd := keyStart + keyLength
 	keyBytes := dataBytes[keyStart:keyEnd]
 	key := string(keyBytes)
@@ -76,8 +76,8 @@ func getValue(dataBytes []byte, valueStart int, valueLength int) string {
 }
 
 // Gets page offset for the data
-func getDataOffset(freeSpace int, dataSize int, numslots uint16) int {
-	totalSlotSize := int(numslots) * slotSize
+func getDataOffset(freeSpace int, dataSize int, numEntries uint16) int {
+	totalSlotSize := int(numEntries) * slotSize
 	totalSlotOffset := totalSlotSize + pageMetadataSize
 
 	dataStart := totalSlotOffset + freeSpace

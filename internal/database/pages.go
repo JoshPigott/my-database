@@ -9,32 +9,34 @@ import (
 type PageType int8
 
 const (
-	FileName       = "data/bubbly.db"
-	pageSize       = 4096
-	pageIDsize int = 4
+	FileName   = "data/bubbly.db"
+	pageSize   = 4096
+	pageIDSize = 4
+	slotIDSize = 2
 
 	MetadataPage PageType = 0
-	RootPage     PageType = 1
-	RoutingPage  PageType = 2
-	DataPage     PageType = 3
+	DataPage     PageType = 1
+	// B+tree pages
+	InternalPage PageType = 2
+	LeafPage     PageType = 3
 )
 
 // Write new page adding default metadata
-func (DB *DB) writeNewPage(pageID uint32, pageType PageType) error {
+func (Pages *Pages) writeNewPage(pageID uint32, pageType PageType) error {
 	bytes := make([]byte, pageSize)
 
 	pageMetadata := pageMetadata{
 		pageType:       pageType,
 		pageID:         pageID,
-		numSlots:       defaultNumSlots,
+		numEntries:     defaultNumEntries,
 		freeSpaceStart: pageMetadataSize,
 		freeSpaceEnd:   pageSize,
 	}
 
-	buf := CreatePageMetadataBuffer(pageMetadata)
+	buf := createMetadataBuffer(pageMetadata)
 	copy(bytes, buf)
 
-	if err := DB.writePage(bytes, pageType); err != nil {
+	if err := Pages.write(bytes, pageType); err != nil {
 		return fmt.Errorf("failed to write page: %w", err)
 	}
 
@@ -42,11 +44,11 @@ func (DB *DB) writeNewPage(pageID uint32, pageType PageType) error {
 }
 
 // Used to create metedata page for the database. Sets metadata
-func (DB *DB) createMetadataPage() error {
+func (Pages *Pages) createMetadataPage() error {
 	// Metadata page is always page 1
 	const metadataPageID uint32 = 1
 
-	if err := DB.writeNewPage(metadataPageID, MetadataPage); err != nil {
+	if err := Pages.writeNewPage(metadataPageID, MetadataPage); err != nil {
 		return err
 	}
 
@@ -56,41 +58,45 @@ func (DB *DB) createMetadataPage() error {
 		freePageStart: 0,
 	}
 
-	return DB.updateMetadata(metadata)
+	return Pages.updateMetadata(metadata)
 }
 
 // Creates all pages
-func (DB *DB) CreatePage(pageType PageType) error {
+func (Pages *Pages) Create(pageType PageType) (uint32, error) {
 	if pageType == MetadataPage {
-		return errors.New("failed to create page: invalid funcation for creating metadata page")
+		return 0, errors.New("failed to create page: invalid funcation for creating metadata page")
 	}
-	metadata, err := DB.readMetadata()
+	metadata, err := Pages.readMetadata()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	metadata.totalNumPages++
 	pageID := metadata.totalNumPages
-	if err := DB.writeNewPage(pageID, pageType); err != nil {
-		return err
+	if pageType == DataPage {
+		metadata.lastDataPage = pageID
+	}
+	if err := Pages.writeNewPage(pageID, pageType); err != nil {
+		return 0, err
 	}
 
-	if err := DB.updateMetadata(metadata); err != nil {
-		return err
+	if err := Pages.updateMetadata(metadata); err != nil {
+		return 0, err
 	}
-	return nil
+	return pageID, nil
 }
 
 // Creates the first data page when need and no more
-func (DB *DB) createFirstDataPage() error {
-	info, err := DB.File.Stat()
+func (Pages *Pages) createFirstDataPage() error {
+	info, err := Pages.File.Stat()
 	if err != nil {
 		return fmt.Errorf("failed to read database size: %w", err)
 	}
 	fileSize := info.Size()
 	// Checks if only metadata page
 	if fileSize == pageSize {
-		if err := DB.CreatePage(DataPage); err != nil {
+		_, err := Pages.Create(DataPage)
+		if err != nil {
 			return fmt.Errorf("failed to create new data page: %w", err)
 		}
 	}
@@ -122,7 +128,7 @@ func getDataBuffer(key string, value string, dataSize int) []byte {
 }
 
 // Get next data page to write to and returns new data page info
-func (DB *DB) ensureWritablePage(metadata metadata, pageID uint32) (pageMetadata, uint32, error) {
+func (Pages *Pages) ensureWritablePage(metadata metadata, pageID uint32) (pageMetadata, uint32, error) {
 	var pageMetadata pageMetadata
 	if metadata.freePageStart != 0 {
 		// uses a free page
@@ -131,13 +137,13 @@ func (DB *DB) ensureWritablePage(metadata metadata, pageID uint32) (pageMetadata
 		// But I will do it when I get to free pages
 	} else {
 		// create a new page
-		err := DB.CreatePage(DataPage)
+		_, err := Pages.Create(DataPage)
 		if err != nil {
 			return pageMetadata, pageID, fmt.Errorf("failed to add to page %w", err)
 		}
 		// Compute new page values
 		pageID++
-		pageMetadata, err = DB.readPageMetadata(pageID)
+		pageMetadata, err = Pages.readPageMetadata(pageID)
 		if err != nil {
 			return pageMetadata, pageID, fmt.Errorf("failed to get metadata: %w", err)
 		}

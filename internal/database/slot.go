@@ -34,9 +34,9 @@ func formatSlot(slotBytes []byte) slot {
 // Iterates over each slot connverting bytes to make a slice
 func formatSlots(pageBytes []byte, pageMetadata pageMetadata) []slot {
 	var formatedSlots []slot
-	totalSlotSize := int(pageMetadata.numSlots) * slotSize
+	totalSlotSize := int(pageMetadata.numEntries) * slotSize
 	slotsBytes := pageBytes[pageMetadataSize:(pageMetadataSize + totalSlotSize)]
-	for i := range int(pageMetadata.numSlots) {
+	for i := range int(pageMetadata.numEntries) {
 		slotBtyes := slotsBytes[(i * slotSize) : (i*slotSize)+slotSize]
 		slot := formatSlot(slotBtyes)
 		formatedSlots = append(formatedSlots, slot)
@@ -46,5 +46,5 @@ func formatSlots(pageBytes []byte, pageMetadata pageMetadata) []slot {
 
 // Get offset for new and shift slot buf
 func getSlotOffset(pageMetadata pageMetadata) int {
-	return pageMetadataSize + int(pageMetadata.numSlots)*slotSize
+	return pageMetadataSize + int(pageMetadata.numEntries)*slotSize
 }

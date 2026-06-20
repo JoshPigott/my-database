@@ -1,4 +1,4 @@
-package btrees
+package database
 
 import (
 	"fmt"
@@ -20,9 +20,13 @@ type BTree struct {
 type node struct {
 	keys         []string
 	children     []*node
+	childPageIDs []uint32
 	KeyLocations []*KeyLocation
 	Next         *node
+	NextID       uint32
 	leaf         bool
+	pageID       uint32
+	pages        *Pages
 }
 
 type KeyLocation struct {
@@ -30,17 +34,38 @@ type KeyLocation struct {
 	SlotID uint16
 }
 
-func NewBTree() *BTree {
-	rootNode := newNode(true)
-	return &BTree{
+func (Pages *Pages) NewBTree() (*BTree, uint32, error) {
+	rootNode, err := Pages.newNode(true)
+	Pages.rootPageLink(rootNode.pageID)
+	if err != nil {
+		return nil, rootNode.pageID, fmt.Errorf("failed to create new b+tree: %w", err)
+	}
+	t := &BTree{
 		root: rootNode,
 	}
+	return t, rootNode.pageID, nil
 }
 
-func newNode(isLeaf bool) *node {
-	return &node{
-		leaf: isLeaf,
+func (Pages *Pages) newNode(isLeaf bool) (*node, error) {
+	var pageID uint32
+	var err error
+	if isLeaf == true {
+		pageID, err = Pages.Create(LeafPage)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create new leaf node: %w", err)
+		}
+	} else {
+		pageID, err = Pages.Create(LeafPage)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create new leaf node: %w", err)
+		}
 	}
+	n := &node{
+		leaf:   isLeaf,
+		pageID: pageID,
+		pages:  Pages,
+	}
+	return n, err
 }
 
 func newKeyLocation(pageID uint32, slotID uint16) *KeyLocation {
@@ -51,40 +76,47 @@ func newKeyLocation(pageID uint32, slotID uint16) *KeyLocation {
 }
 
 // A wrapper for insert to handle spliting of the root
-func (t *BTree) Insert(key string, pageID uint32, slotID uint16) {
+func (DB *DB) Insert(key string, pageID uint32, slotID uint16) {
 	KeyLocation := newKeyLocation(pageID, slotID)
-	splitResult, left, right := insert(t.root, key, KeyLocation)
+	splitResult, left, right := DB.Pages.insert(DB.T.root, key, KeyLocation)
 	if splitResult != nil {
-		newRoot := newNode(false)
+		// rootPageLink
+		newRoot, _ := DB.Pages.newNode(false) // IMPORTANT I still need to catch my error
 		newRoot.addKey(*splitResult, left, right, nil)
-		t.root = newRoot
+		DB.Pages.writeNodeToPage(newRoot)
+		DB.T.root = newRoot
+		DB.Pages.rootPageLink(newRoot.pageID)
 	}
 }
 
 // Find the location of the key return KeyLocation and if found
-func (t *BTree) FindKeyLocation(key string) (uint32, uint16, bool) {
-	n, inTree := t.FindNode(key)
+func (DB *DB) FindKeyLocation(key string) (uint32, uint16, bool, error) {
+	n, inTree, err := DB.T.FindNode(key)
+	if err != nil {
+		return 0, 0, false, fmt.Errorf("failed to find node: %w", err)
+	}
 	if !inTree {
-		return 0, 0, false
+		return 0, 0, false, nil
 	}
 	// I need to find the index where the key happens
 	i := slices.Index(n.keys, key)
 	keyLocation := *n.KeyLocations[i]
-	return keyLocation.PageID, keyLocation.SlotID, true
+	return keyLocation.PageID, keyLocation.SlotID, true, nil
 }
 
 // Returns if key in tree and key
-func (t *BTree) FindNode(key string) (*node, bool) {
+func (t *BTree) FindNode(key string) (*node, bool, error) {
+	var err error
 	n := t.root
 	for {
 		if n.leaf {
 			if slices.Contains(n.keys, key) {
-				return n, true
+				return n, true, err
 			} else {
-				return nil, false
+				return nil, false, err
 			}
 		}
-		n, _ = n.findChild(key)
+		n, _, err = n.findChild(key)
 	}
 }
 
@@ -92,17 +124,25 @@ func (t *BTree) FindNode(key string) (*node, bool) {
 Recursively calls itself to create a call stack,
 adds key at leaf, and works back up splitting if needed
 */
-func insert(n *node, key string, KeyLocation *KeyLocation) (*string, *node, *node) {
+func (Pages *Pages) insert(n *node, key string, KeyLocation *KeyLocation) (*string, *node, *node) {
 	if n.leaf {
 		splitResult, left, right := n.addKey(key, nil, nil, KeyLocation)
+		if splitResult == nil {
+			Pages.writeNodeToPage(n)
+		}
 		return splitResult, left, right
 	}
-
-	child, _ := n.findChild(key)
-	splitResult, left, right := insert(child, key, KeyLocation)
+	// Internal node
+	child, _, _ := n.findChild(key)
+	splitResult, left, right := Pages.insert(child, key, KeyLocation)
 
 	if splitResult != nil {
 		splitResult, left, right = n.addKey(*splitResult, left, right, nil)
+		if splitResult == nil {
+			Pages.writeNodeToPage(n)
+		}
+	} else {
+		Pages.writeNodeToPage(n)
 	}
 	return splitResult, left, right
 }
@@ -110,7 +150,7 @@ func insert(n *node, key string, KeyLocation *KeyLocation) (*string, *node, *nod
 func (n *node) addKey(key string, left *node, right *node, KeyLocation *KeyLocation) (*string, *node, *node) {
 	var splitResult *string
 	// Checks if key in node already
-	if n.leaf == true && slices.Contains(n.keys, key) {
+	if n.leaf && slices.Contains(n.keys, key) {
 		return nil, nil, nil
 	}
 
@@ -124,7 +164,7 @@ func (n *node) addKey(key string, left *node, right *node, KeyLocation *KeyLocat
 	n.keys[i] = key
 
 	// Add key location
-	if n.leaf == true {
+	if n.leaf {
 		n.KeyLocations = append(n.KeyLocations, nil)
 		copy(n.KeyLocations[i+1:], n.KeyLocations[i:])
 		n.KeyLocations[i] = KeyLocation
@@ -137,15 +177,19 @@ func (n *node) addKey(key string, left *node, right *node, KeyLocation *KeyLocat
 	if len(n.keys) > maxKeys {
 		splitResult, left, right = n.split()
 	}
+
 	return splitResult, left, right
 }
 
-// Get insert postion and insert children left at i and right at i + 1
+/*
+Used when a node has to split as too many keys
+So children also get split
+*/
 func (n *node) addChildern(left *node, right *node) {
 	if left == nil || right == nil {
 		return
 	}
-	if n.leaf == true {
+	if n.leaf {
 		n.leaf = false
 	}
 	leftChildKey := left.keys[len(left.keys)-1]
@@ -153,20 +197,26 @@ func (n *node) addChildern(left *node, right *node) {
 		return strings.Compare(leftChildKey, n.keys[i]) < 0
 	})
 
-	// Insert children
+	// Insert children left at odd child postion
 	if i+1 > len(n.children) {
 		n.children = append(n.children, nil)
+		n.childPageIDs = append(n.childPageIDs, 0)
 	}
 	n.children[i] = left
+	n.childPageIDs[i] = left.pageID
 
 	n.children = append(n.children, nil)
 	copy(n.children[i+2:], n.children[i+1:])
 	n.children[i+1] = right
+
+	n.childPageIDs = append(n.childPageIDs, 0)
+	copy(n.childPageIDs[i+2:], n.childPageIDs[i+1:])
+	n.childPageIDs[i+1] = right.pageID
 }
 
 // splits node into two new nodes
 func (n *node) split() (*string, *node, *node) {
-	right := newNode(true)
+	right, _ := n.pages.newNode(n.leaf)
 
 	middlekeyIndex := maxKeys / 2
 	middlekey := &n.keys[middlekeyIndex]
@@ -185,41 +235,61 @@ func (n *node) split() (*string, *node, *node) {
 	n.keys = n.keys[:middlekeyIndex]
 
 	// Updates KeyLocation
-	if n.leaf == true {
+	if n.leaf {
 		rightStart := middlekeyIndex
 		right.KeyLocations = make([]*KeyLocation, len(n.KeyLocations[rightStart:]))
 		copy(right.KeyLocations, n.KeyLocations[rightStart:])
 		n.KeyLocations = n.KeyLocations[:middlekeyIndex]
 	}
 
-	// Updates children
+	// Updates children (splits into different nodes)
 	if len(n.children) > middlekeyIndex {
 		rightChildStart := middlekeyIndex + 1
+
 		right.children = append(right.children, n.children[rightChildStart:]...)
 		n.children = n.children[:rightChildStart]
-		if len(right.children) > 0 {
-			right.leaf = false
-		}
-		if len(n.children) > 0 {
-			n.leaf = false
-		}
+
+		right.childPageIDs = append(right.childPageIDs, n.childPageIDs[rightChildStart:]...)
+		n.childPageIDs = n.childPageIDs[:rightChildStart]
 	}
 
 	// Updates next node
 	right.Next = n.Next
 	n.Next = right
 
+	// Write node to disk
+	n.pages.writeNodeToPage(n)
+	n.pages.writeNodeToPage(right)
+
 	return middlekey, n, right
 }
 
-// Find next child of current node and it index
-func (n *node) findChild(key string) (*node, int) {
+// Finds the child where the key should be inesrt at. Read the child if not in memory
+func (n *node) findChild(key string) (*node, int, error) {
 	for i := range len(n.keys) {
 		if strings.Compare(key, n.keys[i]) < 0 {
-			return n.children[i], i
+
+			if n.children[i] != nil {
+				return n.children[i], i, nil
+			}
+			// Reads child from disk
+			childNode, err := n.pages.ReadPageNode((n.childPageIDs[i]))
+			if err != nil {
+				return nil, i, fmt.Errorf("failed to get child at index %d: %w", i, err)
+			}
+			return childNode, i, nil
 		}
 	}
-	return n.children[len(n.keys)], len(n.keys)
+	// Last child
+	if n.children[len(n.keys)] != nil {
+		return n.children[len(n.keys)], len(n.keys), nil
+	}
+	// Reads child from disk
+	childNode, err := n.pages.ReadPageNode((n.childPageIDs[len(n.keys)]))
+	if err != nil {
+		return nil, len(n.keys), fmt.Errorf("failed to get child at index %d: %w", len(n.keys), err)
+	}
+	return childNode, len(n.keys), nil
 }
 
 // Prints out the btree structure for debugging purposes
@@ -252,4 +322,24 @@ func (t *BTree) PrintLinkedList() {
 		node = node.Next
 	}
 	fmt.Println(node.keys)
+}
+
+// made this maybe for debugging
+func PrintOutNode(n *node) {
+	fmt.Println()
+	fmt.Println("n.pageID:", n.pageID)
+	fmt.Println("n.leaf:", n.leaf)
+	fmt.Println("n.keys:", n.keys)
+
+	if n.leaf == true {
+		for _, keyLocation := range n.KeyLocations {
+			fmt.Println("pageID:", keyLocation.PageID)
+			fmt.Println("slotID:", keyLocation.SlotID)
+		}
+	} else {
+		fmt.Println("n.children:", n.children)
+		fmt.Println("n.childPageIDs:", n.childPageIDs)
+		fmt.Println("n.Next:", n.Next)
+		fmt.Println("n.NextID:", n.NextID)
+	}
 }

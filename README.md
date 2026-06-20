@@ -31,7 +31,7 @@ Each page size is 4096 bytes or 4KB
  the need for seraching the page/s to find a where a key slot is
 - metadata
     - page type (MetadataPage)
-    - numSlots 
+    - numEntries 
     - freeSpaceStart
     - freeSpaceEnd
 - routes
@@ -41,7 +41,7 @@ Each page size is 4096 bytes or 4KB
 **Data / leaf node struture**
 - metadata
     - page type (DataPage)
-    - numSlots 
+    - numEntries 
     - freeSpaceStart
     - freeSpaceEnd
 - slots
@@ -55,3 +55,7 @@ Each page size is 4096 bytes or 4KB
 - data
     - Note this start of the page and fills upwards
     - [keyLength] [valueLength] [key] [value]
+
+
+
+Question do slotID start at 0 or not?
