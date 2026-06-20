@@ -1,4 +1,4 @@
-package btrees
+package database
 
 import (
 	"slices"
@@ -19,7 +19,7 @@ Delete the key from the leaf node.
 Rebalance the tree if necessary.
 */
 func (n *node) delete(key string) {
-	if n.leaf == true {
+	if n.leaf {
 		if !slices.Contains(n.keys, key) {
 			return
 		}
@@ -32,15 +32,15 @@ func (n *node) delete(key string) {
 			}
 		}
 	}
-	nChild, i := n.findChild(key)
+	nChild, i, _ := n.findChild(key)
 	nChild.delete(key)
 
 	childkeyNum := len(n.children[i].keys)
 	underflow := childkeyNum < minKeys
 	if underflow {
 		// try borrow key from child sibbling
-		isLeft := i != 0
-		if isLeft {
+		// Check if left
+		if i != 0 {
 			leftKeyLen := len(n.children[i-1].keys)
 			if leftKeyLen > minKeys {
 				n.borrowFromLeft(i)
@@ -55,7 +55,7 @@ func (n *node) delete(key string) {
 				return
 			}
 		}
-		if isLeft {
+		if i != 0 {
 			n.mergeWithLeft(i)
 			return
 		}

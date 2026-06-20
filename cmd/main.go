@@ -1,68 +1,18 @@
 package main
 
 import (
-	"bubbly-database/internal/btrees"
 	"bubbly-database/internal/database"
 	"fmt"
 	"io"
 )
 
-func main() {
-	testDatabase()
-	// testBTreee()
-}
-
 var DB *database.DB
 
-// Used for debugging
-
-func testBTreee() {
-	var entries = []struct {
-		key    string
-		pageID uint32
-		slotID uint16
-	}{
-		{key: "name", pageID: 3, slotID: 12},
-		{key: "city", pageID: 7, slotID: 4},
-		{key: "email", pageID: 1, slotID: 19},
-		{key: "phone", pageID: 9, slotID: 27},
-		{key: "country", pageID: 5, slotID: 8},
-		{key: "language", pageID: 11, slotID: 3},
-		{key: "hobby", pageID: 2, slotID: 22},
-		{key: "pet", pageID: 8, slotID: 15},
-		{key: "car", pageID: 4, slotID: 30},
-		{key: "job", pageID: 6, slotID: 1},
-		{key: "food", pageID: 10, slotID: 17},
-		{key: "sport", pageID: 3, slotID: 25},
-		{key: "color", pageID: 7, slotID: 9},
-		{key: "music", pageID: 1, slotID: 14},
-		{key: "book", pageID: 12, slotID: 6},
-		{key: "movie", pageID: 5, slotID: 28},
-		{key: "travel", pageID: 9, slotID: 2},
-		{key: "drink", pageID: 2, slotID: 20},
-		{key: "school", pageID: 6, slotID: 11},
-		{key: "team", pageID: 4, slotID: 24},
-		{key: "weather", pageID: 8, slotID: 5},
-		{key: "season", pageID: 11, slotID: 16},
-		{key: "instrument", pageID: 3, slotID: 29},
-		{key: "game", pageID: 7, slotID: 7},
-		{key: "fruit", pageID: 10, slotID: 13},
-		{key: "vegetable", pageID: 1, slotID: 21},
-		{key: "brand", pageID: 5, slotID: 18},
-		{key: "show", pageID: 9, slotID: 10},
-		{key: "animal", pageID: 2, slotID: 26},
-		{key: "landmark", pageID: 6, slotID: 23},
-	}
-
-	t := btrees.NewBTree()
-	for _, e := range entries {
-		if e.key == "weather" {
-			t.CheckStructure(1)
-		}
-		t.Insert(e.key, e.pageID, e.slotID)
-	}
-	t.CheckStructure(2)
+func main() {
+	testDatabase()
 }
+
+// Used for debugging
 
 func testDatabase() {
 	var err error
@@ -71,20 +21,50 @@ func testDatabase() {
 		fmt.Println(err)
 	}
 
-	DB.AddToPage("a", "67")
-	addKeysValues()
-	// DB.Delete("1")
+	// DB.AddToPage("A", "1")
+	// DB.AddToPage("B", "2")
+	// DB.AddToPage("C", "3")
+	// DB.AddToPage("D", "4")
+	// DB.AddToPage("E", "5")
+	// DB.AddToPage("F", "6")
+	// DB.AddToPage("G", "7")
+	// DB.AddToPage("H", "8")
+	// DB.AddToPage("I", "9")
+	// DB.AddToPage("J", "10")
+	// DB.AddToPage("K", "11")
+	// DB.AddToPage("L", "12")
+	// DB.AddToPage("M", "13")
+	// DB.AddToPage("N", "14")
+	// DB.AddToPage("O", "15")
+	// DB.AddToPage("P", "16")
+	// DB.AddToPage("Q", "17")
+	// DB.AddToPage("R", "18")
+	// DB.AddToPage("S", "19")
+	// DB.AddToPage("T", "20")
+	// DB.AddToPage("U", "21")
+	// DB.AddToPage("V", "22")
+	// DB.AddToPage("W", "23")
+	// DB.AddToPage("X", "24")
+	// DB.AddToPage("Y", "25")
+	// DB.AddToPage("Z", "26")
+
+	for i := 3; i <= 19; i++ {
+		n, _ := DB.Pages.ReadPageNode(uint32(i))
+		database.PrintOutNode(n)
+	}
+
+	// value, _, err := DB.Select("Josh")
+	// fmt.Println("Josh:", value)
+
 	lookAtFile()
-	lookAtData()
-	value, found, err := DB.Select("p0ly_fill")
-	fmt.Println("Info (value, found, err)", value, found, err)
+	// lookAtData()
 	if err := DB.Close(); err != nil {
 		fmt.Println(err)
 	}
 }
 
 func lookAtFile() {
-	info, err := DB.File.Stat()
+	info, err := DB.Pages.File.Stat()
 	if err != nil {
 		fmt.Println("failed to get file size: %w", err)
 	}
@@ -94,10 +74,10 @@ func lookAtFile() {
 	// 	fmt.Println("key:", key, "value:", value)
 	// }
 	bytes := make([]byte, fileSize)
-	if _, err := DB.File.Seek(0, io.SeekStart); err != nil {
+	if _, err := DB.Pages.File.Seek(0, io.SeekStart); err != nil {
 		fmt.Println("failed to move start of file to read")
 	}
-	n, err := DB.File.Read(bytes)
+	n, err := DB.Pages.File.Read(bytes)
 	if err != nil {
 		fmt.Println("failed to read bytes aye", err)
 	}
@@ -259,3 +239,51 @@ func addKeysValues() {
 		DB.AddToPage(k, v)
 	}
 }
+
+// func testBTreee() {
+// 	var entries = []struct {
+// 		key    string
+// 		pageID uint32
+// 		slotID uint16
+// 	}{
+// 		{key: "name", pageID: 3, slotID: 12},
+// 		{key: "city", pageID: 7, slotID: 4},
+// 		{key: "email", pageID: 1, slotID: 19},
+// 		{key: "phone", pageID: 9, slotID: 27},
+// 		{key: "country", pageID: 5, slotID: 8},
+// 		{key: "language", pageID: 11, slotID: 3},
+// 		{key: "hobby", pageID: 2, slotID: 22},
+// 		{key: "pet", pageID: 8, slotID: 15},
+// 		{key: "car", pageID: 4, slotID: 30},
+// 		{key: "job", pageID: 6, slotID: 1},
+// 		{key: "food", pageID: 10, slotID: 17},
+// 		{key: "sport", pageID: 3, slotID: 25},
+// 		{key: "color", pageID: 7, slotID: 9},
+// 		{key: "music", pageID: 1, slotID: 14},
+// 		{key: "book", pageID: 12, slotID: 6},
+// 		{key: "movie", pageID: 5, slotID: 28},
+// 		{key: "travel", pageID: 9, slotID: 2},
+// 		{key: "drink", pageID: 2, slotID: 20},
+// 		{key: "school", pageID: 6, slotID: 11},
+// 		{key: "team", pageID: 4, slotID: 24},
+// 		{key: "weather", pageID: 8, slotID: 5},
+// 		{key: "season", pageID: 11, slotID: 16},
+// 		{key: "instrument", pageID: 3, slotID: 29},
+// 		{key: "game", pageID: 7, slotID: 7},
+// 		{key: "fruit", pageID: 10, slotID: 13},
+// 		{key: "vegetable", pageID: 1, slotID: 21},
+// 		{key: "brand", pageID: 5, slotID: 18},
+// 		{key: "show", pageID: 9, slotID: 10},
+// 		{key: "animal", pageID: 2, slotID: 26},
+// 		{key: "landmark", pageID: 6, slotID: 23},
+// 	}
+
+// 	t := database.NewBTree()
+// 	for _, e := range entries {
+// 		if e.key == "weather" {
+// 			t.CheckStructure(1)
+// 		}
+// 		t.Insert(e.key, e.pageID, e.slotID)
+// 	}
+// 	t.CheckStructure(2)
+// }

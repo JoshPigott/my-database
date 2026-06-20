@@ -9,15 +9,16 @@ import (
 type PageType int8
 
 const (
-	FileName       = "data/bubbly.db"
-	pageSize       = 4096
-	pageIDsize int = 4
+	FileName   = "data/bubbly.db"
+	pageSize   = 4096
+	pageIDSize = 4
+	slotIDSize = 2
 
 	MetadataPage PageType = 0
 	DataPage     PageType = 1
 	// B+tree pages
-	RoutingPage PageType = 2
-	LeafPage    PageType = 3
+	InternalPage PageType = 2
+	LeafPage     PageType = 3
 )
 
 // Write new page adding default metadata
@@ -27,12 +28,12 @@ func (Pages *Pages) writeNewPage(pageID uint32, pageType PageType) error {
 	pageMetadata := pageMetadata{
 		pageType:       pageType,
 		pageID:         pageID,
-		numSlots:       defaultNumEntries,
+		numEntries:     defaultNumEntries,
 		freeSpaceStart: pageMetadataSize,
 		freeSpaceEnd:   pageSize,
 	}
 
-	buf := CreateMetadataBuffer(pageMetadata)
+	buf := createMetadataBuffer(pageMetadata)
 	copy(bytes, buf)
 
 	if err := Pages.write(bytes, pageType); err != nil {
@@ -72,6 +73,9 @@ func (Pages *Pages) Create(pageType PageType) (uint32, error) {
 
 	metadata.totalNumPages++
 	pageID := metadata.totalNumPages
+	if pageType == DataPage {
+		metadata.lastDataPage = pageID
+	}
 	if err := Pages.writeNewPage(pageID, pageType); err != nil {
 		return 0, err
 	}

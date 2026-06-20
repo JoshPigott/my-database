@@ -6,34 +6,6 @@ import (
 	"os"
 )
 
-type Pages struct {
-	File *os.File
-}
-
-type Btree struct {
-	T *BTree
-}
-
-type DB struct {
-	Pages *Pages
-	T     *BTree
-}
-
-func newDatabase(file *os.File) (*DB, error) {
-	pages := &Pages{
-		File: file,
-	}
-	t, err := pages.NewBTree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new database: %w", err)
-	}
-	db := &DB{
-		Pages: pages,
-		T:     t,
-	}
-	return db, nil
-}
-
 // Opens up database file a makes sure there is a metedata page
 func Open() (*DB, error) {
 	file, err := os.OpenFile(FileName, os.O_RDWR|os.O_CREATE, 0644)
@@ -43,12 +15,6 @@ func Open() (*DB, error) {
 	db, err := newDatabase(file)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
-	}
-	if err := db.Pages.ensureMetadataPage(); err != nil {
-		return nil, fmt.Errorf("failed to create metadata page: %w", err)
-	}
-	if err := db.Pages.createFirstDataPage(); err != nil {
-		return nil, fmt.Errorf("failed to create first data page")
 	}
 	return db, nil
 }
@@ -72,11 +38,11 @@ func (DB *DB) AddToPage(key string, value string) error {
 	if metadata.freePageStart != 0 {
 		pageID = metadata.freePageStart - 1
 	} else {
-		pageID = metadata.totalNumPages
+		pageID = metadata.lastDataPage
 	}
 
 	// Calculate required space
-	dataSize := keyLengthStorageSize + len(key) + valueLengthStorageSize + len(value)
+	dataSize := keyLenStorageSize + len(key) + valueLenStorageSize + len(value)
 	pageMetadata, err := DB.Pages.readPageMetadata(pageID)
 	if err != nil {
 		return fmt.Errorf("failed to get metadata")
@@ -96,7 +62,7 @@ func (DB *DB) AddToPage(key string, value string) error {
 
 	// Compute offsets
 	slotOffset := getSlotOffset(pageMetadata)
-	newDataOffset := getDataOffset(freeSpace, dataSize, pageMetadata.numSlots)
+	newDataOffset := getDataOffset(freeSpace, dataSize, pageMetadata.numEntries)
 
 	// Compute buffers
 	slotBuf := getSlotBuffer(uint16(newDataOffset), uint16(dataSize), slotNormal)
@@ -109,11 +75,18 @@ func (DB *DB) AddToPage(key string, value string) error {
 	if err := DB.Pages.WriteBytes(dataBuf, newDataOffset, pageID); err != nil {
 		return fmt.Errorf("failed to write new data: %w", err)
 	}
-	if err := DB.Pages.updatePageMetadata(pageMetadata, dataSize); err != nil {
+
+	// Add to b+tree
+	DB.Insert(key, pageID, pageMetadata.numEntries)
+
+	// Update page metadata
+	pageMetadata.numEntries += 1
+	pageMetadata.freeSpaceStart += uint16(slotSize)
+	pageMetadata.freeSpaceEnd -= uint16(dataSize)
+	if err := DB.Pages.updatePageMetadata(pageMetadata); err != nil {
 		return fmt.Errorf("failed to update metadata")
 	}
 
-	// DB.Insert(key, pageID, pageMetadata.numSlots) Note this is used for the b+tree and will need to chagned
 	return nil
 }
 
@@ -170,9 +143,12 @@ func (DB *DB) SelectAll() (map[string]string, error) {
 	return data, nil
 }
 
-// Uses b+tree to select the value returns; value, ifFound, error
+// Uses b+tree to select the value returns; value, if found, error
 func (DB *DB) Select(key string) (string, bool, error) {
-	pageID, slotID, inTree := DB.FindKeyLocation(key)
+	pageID, slotID, inTree, err := DB.FindKeyLocation(key)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to select value: %w", err)
+	}
 	if inTree == false {
 		return "", false, nil
 	}

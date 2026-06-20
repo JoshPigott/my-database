@@ -27,6 +27,19 @@ func (Pages *Pages) readFull(pageID uint32) ([]byte, []slot, []record, error) {
 	return pageBytes, slots, dataRecords, nil
 }
 
+func (Pages *Pages) ReadBytes(size int, offset int, pageID uint32) ([]byte, error) {
+	bytes := make([]byte, size)
+	pageOffSet := getPageOffset(pageID)
+	totalOffset := int64(offset) + pageOffSet
+	if _, err := Pages.File.Seek(totalOffset, io.SeekStart); err != nil {
+		return []byte{}, fmt.Errorf("failed to write bytes: %w", err)
+	}
+	if _, err := Pages.File.Read(bytes); err != nil {
+		return []byte{}, fmt.Errorf("failed to read file: %w", err)
+	}
+	return bytes, nil
+}
+
 // Write new page at the end of the file
 func (Pages *Pages) write(bytes []byte, pageType PageType) error {
 	info, err := Pages.File.Stat()
@@ -85,7 +98,8 @@ func (Pages *Pages) readPageMetadata(pageID uint32) (pageMetadata, error) {
 // Reads metadata page and return the database metadata in a metadata struct
 func (Pages *Pages) readMetadata() (metadata, error) {
 	metadataBytes := make([]byte, metadataSize)
-	if _, err := Pages.File.Seek(pageMetadataSize, io.SeekStart); err != nil {
+	dbMetadataStart := int64(pageMetadataSize)
+	if _, err := Pages.File.Seek(dbMetadataStart, io.SeekStart); err != nil {
 		return metadata{}, fmt.Errorf("failed to read metadata page: %w", err)
 	}
 	if _, err := Pages.File.Read(metadataBytes); err != nil {
@@ -97,7 +111,7 @@ func (Pages *Pages) readMetadata() (metadata, error) {
 
 // Reads a particular slot
 func (Pages *Pages) readSlot(pageID uint32, slotID uint16) ([]byte, error) {
-	slotBytes := make([]byte, slotID)
+	slotBytes := make([]byte, slotSize)
 
 	pageOffSet := getPageOffset(pageID)
 	slotOffset := pageMetadataSize + (int64(slotID) * int64(slotSize))

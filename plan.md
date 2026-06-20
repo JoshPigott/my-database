@@ -48,8 +48,14 @@ https://www.youtube.com/watch?v=09E-tVAUqQw&pp=ygURYisgdHJlZSBleHBsYWluZWQ%3D
 To implement B trees 
  
 
+Just slowly try and get stuff to work like the btree pages
+Then do a big refactor
+Do a good readme
 
-## Connection between b+trees and pages
-Finsh up with testing 
 
-Then I think maybe write btrees to disk
+At some I will need to firgure out test cause my main file is fucked
+I see no reason for Pages to not be Pages but IDK lol
+At some point I will need to catch my errors
+
+
+Fix this part // IMPORTANT I still need to catch my error
