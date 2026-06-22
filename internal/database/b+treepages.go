@@ -2,13 +2,38 @@ package database
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
+
+// Turns node page into free page
+func (pages *Pages) deleteNodePage(n *node) error {
+	buf := make([]byte, pageSize)
+
+	metadata, err := pages.readMetadata()
+	if err != nil {
+		return fmt.Errorf("failed to get metadata: %w", err)
+	}
+	binary.BigEndian.PutUint32(buf[pageStart:pageIDSize], metadata.nextFreePage)
+	metadata.nextFreePage = n.pageID
+
+	if err := pages.updateMetadata(metadata); err != nil {
+		return fmt.Errorf("failed to update metadata: %w", err)
+	}
+	if err := pages.WriteBytes(buf, pageStart, n.pageID); err != nil {
+		return fmt.Errorf("failed to delete nodes page: %w", err)
+	}
+	return nil
+}
 
 func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	var n *node
 	offset := 0
 	pageBytes, err := pages.ReadBytes(pageSize, offset, pageID)
+	// Free page node was deleted
+	if pageBytes[pageStart] == 0 {
+		return nil, errors.New("invalid page node")
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to node's page: %w", err)
 	}
@@ -21,6 +46,7 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 		n = pages.formatLeafNode(pageBytes, pageMetadata)
 	}
 	n.pageID = pageID
+	pages.pageIDToNode[pageID] = n
 	return n, nil
 }
 
@@ -97,11 +123,12 @@ func (pages *Pages) formatChild(n *node, pageBytes []byte, offest int) {
 	n.children = append(n.children, pages.pageIDToNode[childPageID])
 }
 
-func (Pages *Pages) writeNodeToPage(n *node) {
+func (pages *Pages) writeNodeToPage(n *node) {
+	delete(pages.pageIDToNode, n.pageID)
 	if n.leaf == true {
-		Pages.writeLeafNode(n)
+		pages.writeLeafNode(n)
 	} else {
-		Pages.writeInternalNode(n)
+		pages.writeInternalNode(n)
 	}
 }
 

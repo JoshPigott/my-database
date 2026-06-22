@@ -34,12 +34,7 @@ func (DB *DB) AddToPage(key string, value string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read : %w", err)
 	}
-	// Get last used page
-	if metadata.freePageStart != 0 {
-		pageID = metadata.freePageStart - 1
-	} else {
-		pageID = metadata.lastDataPage
-	}
+	pageID = metadata.lastDataPage
 
 	// Calculate required space
 	dataSize := keyLenStorageSize + len(key) + valueLenStorageSize + len(value)
@@ -53,7 +48,7 @@ func (DB *DB) AddToPage(key string, value string) error {
 	requiredSpace := slotSize + dataSize
 	needsNewPage := freeSpace < requiredSpace
 	if needsNewPage {
-		pageMetadata, pageID, err = DB.Pages.ensureWritablePage(metadata, pageID)
+		pageMetadata, pageID, err = DB.Pages.ensureWritablePage()
 		if err != nil {
 			return fmt.Errorf("failed ensure writable data page: %w", err)
 		}
@@ -98,6 +93,15 @@ func (DB *DB) Delete(key string) error {
 	}
 	// Loops over each page
 	for pageID := 1; pageID <= numOfPagesToRead; pageID++ {
+		// Check if data page
+		pageMetadata, err := DB.Pages.readPageMetadata(uint32(pageID))
+		if err != nil {
+			return fmt.Errorf("failed to page %d: %w", pageID, err)
+		}
+		if pageMetadata.pageType != DataPage {
+			continue
+		}
+
 		dataRecords, err := DB.Pages.read(uint32(pageID))
 		if err != nil {
 			return fmt.Errorf("failed to read page: %w", err)
@@ -115,7 +119,7 @@ func (DB *DB) Delete(key string) error {
 			DB.Pages.WriteBytes(slotFlagBytes, slotFlagOffset, uint32(pageID))
 		}
 	}
-	// DB.Delete(key) Note this is used for the b+tree and will need to chagned
+	DB.T.Delete(key)
 	return nil
 }
 

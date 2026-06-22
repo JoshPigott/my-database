@@ -28,7 +28,6 @@ type node struct {
 	pageID       uint32
 	pages        *Pages
 }
-
 type KeyLocation struct {
 	PageID uint32
 	SlotID uint16
@@ -74,6 +73,16 @@ func newKeyLocation(pageID uint32, slotID uint16) *KeyLocation {
 		SlotID: slotID,
 	}
 }
+
+// func (n *node) child(i int) (*node, error) {
+// 	if n.children[i] != nil {
+// 		return n.children[i], nil
+// 	} else if n.childPageIDs[i] != 0 {
+// 		return n.pages.ReadPageNode(n.childPageIDs[i])
+// 	} else {
+// 		return nil, nil
+// 	}
+// }
 
 // A wrapper for insert to handle spliting of the root
 func (DB *DB) Insert(key string, pageID uint32, slotID uint16) {
@@ -255,7 +264,10 @@ func (n *node) split() (*string, *node, *node) {
 
 	// Updates next node
 	right.Next = n.Next
+	right.NextID = n.NextID
+
 	n.Next = right
+	n.NextID = right.pageID
 
 	// Write node to disk
 	n.pages.writeNodeToPage(n)
@@ -274,6 +286,7 @@ func (n *node) findChild(key string) (*node, int, error) {
 			}
 			// Reads child from disk
 			childNode, err := n.pages.ReadPageNode((n.childPageIDs[i]))
+			n.children[i] = childNode
 			if err != nil {
 				return nil, i, fmt.Errorf("failed to get child at index %d: %w", i, err)
 			}
@@ -286,6 +299,7 @@ func (n *node) findChild(key string) (*node, int, error) {
 	}
 	// Reads child from disk
 	childNode, err := n.pages.ReadPageNode((n.childPageIDs[len(n.keys)]))
+	n.children[len(n.keys)] = childNode
 	if err != nil {
 		return nil, len(n.keys), fmt.Errorf("failed to get child at index %d: %w", len(n.keys), err)
 	}
@@ -311,17 +325,25 @@ func (t *BTree) CheckStructure(number int) {
 	println()
 }
 
-// Used for debuging
+// Used for debugging
 func (t *BTree) PrintLinkedList() {
-	node := t.root
-	for node.leaf != true {
-		node = node.children[0]
+	n := t.root
+	for !n.leaf {
+		n = n.children[0]
 	}
-	for node.Next != nil {
-		fmt.Println(node.keys)
-		node = node.Next
+
+	for n != nil {
+		fmt.Println(n.keys)
+
+		switch {
+		case n.Next != nil:
+			n = n.Next
+		case n.NextID != 0:
+			n, _ = n.pages.ReadPageNode(n.NextID)
+		default:
+			n = nil
+		}
 	}
-	fmt.Println(node.keys)
 }
 
 // made this maybe for debugging
@@ -332,6 +354,8 @@ func PrintOutNode(n *node) {
 	fmt.Println("n.keys:", n.keys)
 
 	if n.leaf == true {
+		fmt.Println("n.Next:", n.Next)
+		fmt.Println("n.NextID:", n.NextID)
 		for _, keyLocation := range n.KeyLocations {
 			fmt.Println("pageID:", keyLocation.PageID)
 			fmt.Println("slotID:", keyLocation.SlotID)
@@ -339,7 +363,5 @@ func PrintOutNode(n *node) {
 	} else {
 		fmt.Println("n.children:", n.children)
 		fmt.Println("n.childPageIDs:", n.childPageIDs)
-		fmt.Println("n.Next:", n.Next)
-		fmt.Println("n.NextID:", n.NextID)
 	}
 }

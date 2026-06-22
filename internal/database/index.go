@@ -24,7 +24,8 @@ type DB struct {
 func newDatabase(file *os.File) (*DB, error) {
 	var t *BTree
 	pages := &Pages{
-		File: file,
+		File:         file,
+		pageIDToNode: map[uint32]*node{},
 	}
 
 	if err := pages.ensureMetadataPage(); err != nil {

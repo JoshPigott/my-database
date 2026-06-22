@@ -12,49 +12,12 @@ func main() {
 	testDatabase()
 }
 
-// Used for debugging
-
 func testDatabase() {
 	var err error
 	DB, err = database.Open()
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	// DB.AddToPage("A", "1")
-	// DB.AddToPage("B", "2")
-	// DB.AddToPage("C", "3")
-	// DB.AddToPage("D", "4")
-	// DB.AddToPage("E", "5")
-	// DB.AddToPage("F", "6")
-	// DB.AddToPage("G", "7")
-	// DB.AddToPage("H", "8")
-	// DB.AddToPage("I", "9")
-	// DB.AddToPage("J", "10")
-	// DB.AddToPage("K", "11")
-	// DB.AddToPage("L", "12")
-	// DB.AddToPage("M", "13")
-	// DB.AddToPage("N", "14")
-	// DB.AddToPage("O", "15")
-	// DB.AddToPage("P", "16")
-	// DB.AddToPage("Q", "17")
-	// DB.AddToPage("R", "18")
-	// DB.AddToPage("S", "19")
-	// DB.AddToPage("T", "20")
-	// DB.AddToPage("U", "21")
-	// DB.AddToPage("V", "22")
-	// DB.AddToPage("W", "23")
-	// DB.AddToPage("X", "24")
-	// DB.AddToPage("Y", "25")
-	// DB.AddToPage("Z", "26")
-
-	for i := 3; i <= 19; i++ {
-		n, _ := DB.Pages.ReadPageNode(uint32(i))
-		database.PrintOutNode(n)
-	}
-
-	// value, _, err := DB.Select("Josh")
-	// fmt.Println("Josh:", value)
 
 	lookAtFile()
 	// lookAtData()

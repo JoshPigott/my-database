@@ -56,6 +56,4 @@ Each page size is 4096 bytes or 4KB
     - Note this start of the page and fills upwards
     - [keyLength] [valueLength] [key] [value]
 
-
-
-Question do slotID start at 0 or not?
+note duplicates keys cannot be added to the tree will regret second keys

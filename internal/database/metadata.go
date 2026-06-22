@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -16,14 +17,14 @@ const (
 	rootpageIDSize     = 4
 	rootPageIDIndex    = 0
 	totalNumPagesIndex = 4
-	freePageStartIndex = 8
+	nextFreePageIndex  = 8
 	lastDataPageIndex  = 12
 )
 
 type metadata struct {
 	rootPageID    uint32
 	totalNumPages uint32
-	freePageStart uint32
+	nextFreePage  uint32
 	lastDataPage  uint32
 }
 
@@ -32,8 +33,22 @@ func newDefaultMetadata() metadata {
 	return metadata{
 		rootPageID:    undefinedRootPageID,
 		totalNumPages: onlyMetadataPage,
-		freePageStart: noFreePages,
+		nextFreePage:  noFreePages,
 	}
+}
+
+// Reads metadata page and return the database metadata in a metadata struct
+func (Pages *Pages) readMetadata() (metadata, error) {
+	metadataBytes := make([]byte, metadataSize)
+	dbMetadataStart := int64(pageMetadataSize)
+	if _, err := Pages.File.Seek(dbMetadataStart, io.SeekStart); err != nil {
+		return metadata{}, fmt.Errorf("failed to read metadata page: %w", err)
+	}
+	if _, err := Pages.File.Read(metadataBytes); err != nil {
+		return metadata{}, fmt.Errorf("failed to read metadata page: %w", err)
+	}
+	metadata := formatMetadata(metadataBytes)
+	return metadata, nil
 }
 
 // Creates a metadata page if none
@@ -57,8 +72,8 @@ func (Pages *Pages) ensureMetadataPage() error {
 func formatMetadata(metadataBytes []byte) metadata {
 	return metadata{
 		rootPageID:    binary.BigEndian.Uint32(metadataBytes[rootPageIDIndex:totalNumPagesIndex]),
-		totalNumPages: binary.BigEndian.Uint32(metadataBytes[totalNumPagesIndex:freePageStartIndex]),
-		freePageStart: binary.BigEndian.Uint32(metadataBytes[freePageStartIndex:lastDataPageIndex]),
+		totalNumPages: binary.BigEndian.Uint32(metadataBytes[totalNumPagesIndex:nextFreePageIndex]),
+		nextFreePage:  binary.BigEndian.Uint32(metadataBytes[nextFreePageIndex:lastDataPageIndex]),
 		lastDataPage:  binary.BigEndian.Uint32(metadataBytes[lastDataPageIndex:metadataSize]),
 	}
 }
@@ -75,8 +90,8 @@ func (Pages *Pages) updateMetadata(metadata metadata) error {
 func createDatabaseMetadataBuffer(metadata metadata) []byte {
 	buf := make([]byte, metadataSize)
 	binary.BigEndian.PutUint32(buf[rootPageIDIndex:totalNumPagesIndex], metadata.rootPageID)
-	binary.BigEndian.PutUint32(buf[totalNumPagesIndex:freePageStartIndex], metadata.totalNumPages)
-	binary.BigEndian.PutUint32(buf[freePageStartIndex:lastDataPageIndex], metadata.freePageStart)
+	binary.BigEndian.PutUint32(buf[totalNumPagesIndex:nextFreePageIndex], metadata.totalNumPages)
+	binary.BigEndian.PutUint32(buf[nextFreePageIndex:lastDataPageIndex], metadata.nextFreePage)
 	binary.BigEndian.PutUint32(buf[lastDataPageIndex:metadataSize], metadata.lastDataPage)
 	return buf
 }
@@ -87,8 +102,8 @@ func (Pages *Pages) getNumOfPagesToRead() (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to read number of pages: %w", err)
 	}
-	if metadata.freePageStart != 0 {
-		return int(metadata.freePageStart), nil
+	if metadata.nextFreePage != 0 {
+		return int(metadata.nextFreePage), nil
 	}
 	return int(metadata.totalNumPages), nil
 }
