@@ -95,20 +95,6 @@ func (Pages *Pages) readPageMetadata(pageID uint32) (pageMetadata, error) {
 	return pageMetadata, nil
 }
 
-// Reads metadata page and return the database metadata in a metadata struct
-func (Pages *Pages) readMetadata() (metadata, error) {
-	metadataBytes := make([]byte, metadataSize)
-	dbMetadataStart := int64(pageMetadataSize)
-	if _, err := Pages.File.Seek(dbMetadataStart, io.SeekStart); err != nil {
-		return metadata{}, fmt.Errorf("failed to read metadata page: %w", err)
-	}
-	if _, err := Pages.File.Read(metadataBytes); err != nil {
-		return metadata{}, fmt.Errorf("failed to read metadata page: %w", err)
-	}
-	metadata := formatMetadata(metadataBytes)
-	return metadata, nil
-}
-
 // Reads a particular slot
 func (Pages *Pages) readSlot(pageID uint32, slotID uint16) ([]byte, error) {
 	slotBytes := make([]byte, slotSize)

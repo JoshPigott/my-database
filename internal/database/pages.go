@@ -55,32 +55,44 @@ func (Pages *Pages) createMetadataPage() error {
 	metadata := metadata{
 		rootPageID:    0,
 		totalNumPages: 1, // metadata page exists now
-		freePageStart: 0,
+		nextFreePage:  0,
 	}
 
 	return Pages.updateMetadata(metadata)
 }
 
 // Creates all pages
-func (Pages *Pages) Create(pageType PageType) (uint32, error) {
+func (pages *Pages) Create(pageType PageType) (uint32, error) {
+	var pageID uint32
 	if pageType == MetadataPage {
 		return 0, errors.New("failed to create page: invalid funcation for creating metadata page")
 	}
-	metadata, err := Pages.readMetadata()
+	metadata, err := pages.readMetadata()
 	if err != nil {
 		return 0, err
 	}
-
-	metadata.totalNumPages++
-	pageID := metadata.totalNumPages
-	if pageType == DataPage {
-		metadata.lastDataPage = pageID
+	if metadata.nextFreePage == 0 {
+		metadata.totalNumPages++
+		pageID = metadata.totalNumPages
+		if pageType == DataPage {
+			metadata.lastDataPage = pageID
+		}
+	} else {
+		pageID = metadata.nextFreePage
+		pageIDBytes, err := pages.ReadBytes(pageIDSize, pageStart, metadata.nextFreePage)
+		if err != nil {
+			return 0, fmt.Errorf("failed to update next free page id")
+		}
+		// Update next page stack
+		nextPageID := binary.BigEndian.Uint32(pageIDBytes)
+		metadata.nextFreePage = nextPageID
 	}
-	if err := Pages.writeNewPage(pageID, pageType); err != nil {
+
+	if err := pages.writeNewPage(pageID, pageType); err != nil {
 		return 0, err
 	}
 
-	if err := Pages.updateMetadata(metadata); err != nil {
+	if err := pages.updateMetadata(metadata); err != nil {
 		return 0, err
 	}
 	return pageID, nil
@@ -128,26 +140,17 @@ func getDataBuffer(key string, value string, dataSize int) []byte {
 }
 
 // Get next data page to write to and returns new data page info
-func (Pages *Pages) ensureWritablePage(metadata metadata, pageID uint32) (pageMetadata, uint32, error) {
+func (Pages *Pages) ensureWritablePage() (pageMetadata, uint32, error) {
 	var pageMetadata pageMetadata
-	if metadata.freePageStart != 0 {
-		// uses a free page
-		pageID = metadata.freePageStart
-		// I will still need to update some stuff here
-		// But I will do it when I get to free pages
-	} else {
-		// create a new page
-		_, err := Pages.Create(DataPage)
-		if err != nil {
-			return pageMetadata, pageID, fmt.Errorf("failed to add to page %w", err)
-		}
-		// Compute new page values
-		pageID++
-		pageMetadata, err = Pages.readPageMetadata(pageID)
-		if err != nil {
-			return pageMetadata, pageID, fmt.Errorf("failed to get metadata: %w", err)
-		}
-		return pageMetadata, pageID, nil
+	// create a new data page
+	pageID, err := Pages.Create(DataPage)
+	if err != nil {
+		return pageMetadata, pageID, fmt.Errorf("failed to add to page %w", err)
+	}
+	// Compute new page values
+	pageMetadata, err = Pages.readPageMetadata(pageID)
+	if err != nil {
+		return pageMetadata, pageID, fmt.Errorf("failed to get metadata: %w", err)
 	}
 	return pageMetadata, pageID, nil
 }
