@@ -41,7 +41,8 @@ func (Pages *Pages) ReadBytes(size int, offset int, pageID uint32) ([]byte, erro
 }
 
 // Write new page at the end of the file
-func (Pages *Pages) write(bytes []byte, pageType PageType) error {
+func (Pages *Pages) write(bytes []byte, pageID uint32, pageType PageType) error {
+	offset := getPageOffset(pageID)
 	info, err := Pages.File.Stat()
 	if err != nil {
 		return fmt.Errorf("failed to get file size: %w", err)
@@ -49,7 +50,7 @@ func (Pages *Pages) write(bytes []byte, pageType PageType) error {
 	if pageType == MetadataPage && info.Size() != 0 {
 		return errors.New("failed to add metadata page: can't metadata not a top of database")
 	}
-	if _, err := Pages.File.Seek(info.Size(), io.SeekStart); err != nil {
+	if _, err := Pages.File.Seek(offset, io.SeekStart); err != nil {
 		return fmt.Errorf("failed to write bytes: %w", err)
 	}
 	if _, err := Pages.File.Write(bytes); err != nil {
@@ -131,22 +132,3 @@ func getPageOffset(pageID uint32) int64 {
 	offset := (int64(pageID) - 1) * pageSize
 	return offset
 }
-
-// // Notes this funcation is just for making my life easy with testing
-// func beenCreated(numOfFiles int) (bool, error) {
-// 	fileInfo, err := os.Stat(FileName)
-// 	if errors.Is(err, os.ErrNotExist) {
-// 		return true, nil
-// 	}
-// 	if err != nil {
-// 		return false, fmt.Errorf("failed to check file info: %w", err)
-
-// 	}
-// 	if fileInfo.Size() == int64(numOfFiles*pageSize) {
-// 		return true, nil
-// 	}
-// 	if fileInfo.Size() == 0 {
-// 		return false, nil
-// 	}
-// 	return false, errors.New("failed to check if file has been created")
-// }

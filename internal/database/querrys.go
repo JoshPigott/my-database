@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -29,8 +30,18 @@ func (DB *DB) Close() error {
 // Adds to page if there is room to add the page
 func (DB *DB) AddToPage(key string, value string) error {
 	var pageID uint32
+
+	// Check input sizes
+	if len(key) > maxKeySize && len(value) > maxValueSize {
+		return errors.New("too long key and value")
+	} else if len(key) > maxKeySize {
+		return errors.New("too long key")
+	} else if len(value) > maxValueSize {
+		return errors.New("too long value")
+	}
+
 	// Get database metadata
-	metadata, err := DB.Pages.readMetadata()
+	metadata, err := DB.Pages.ReadMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to read : %w", err)
 	}
@@ -124,7 +135,7 @@ func (DB *DB) Delete(key string) error {
 }
 
 // Return in a map of the key -> value. Remove duplicates and deleted records
-func (DB *DB) SelectAll() (map[string]string, error) {
+func (DB *DB) SelectAll() (map[string]string, error) { // Note this no longer works (will get fix in reafactor)
 	data := map[string]string{}
 	numOfPagesToRead, err := DB.Pages.getNumOfPagesToRead()
 	if err != nil {

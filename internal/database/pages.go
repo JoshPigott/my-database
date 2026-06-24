@@ -9,10 +9,13 @@ import (
 type PageType int8
 
 const (
-	FileName   = "data/bubbly.db"
-	pageSize   = 4096
-	pageIDSize = 4
-	slotIDSize = 2
+	FileName     = "data/bubbly.db"
+	pageSize     = 4096
+	halfPageSize = pageSize / 2
+	maxKeySize   = 256
+	maxValueSize = 512
+	pageIDSize   = 4
+	slotIDSize   = 2
 
 	MetadataPage PageType = 0
 	DataPage     PageType = 1
@@ -36,7 +39,7 @@ func (Pages *Pages) writeNewPage(pageID uint32, pageType PageType) error {
 	buf := createMetadataBuffer(pageMetadata)
 	copy(bytes, buf)
 
-	if err := Pages.write(bytes, pageType); err != nil {
+	if err := Pages.write(bytes, pageID, pageType); err != nil {
 		return fmt.Errorf("failed to write page: %w", err)
 	}
 
@@ -67,16 +70,13 @@ func (pages *Pages) Create(pageType PageType) (uint32, error) {
 	if pageType == MetadataPage {
 		return 0, errors.New("failed to create page: invalid funcation for creating metadata page")
 	}
-	metadata, err := pages.readMetadata()
+	metadata, err := pages.ReadMetadata()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to read metadata to create new page: %w", err)
 	}
 	if metadata.nextFreePage == 0 {
 		metadata.totalNumPages++
 		pageID = metadata.totalNumPages
-		if pageType == DataPage {
-			metadata.lastDataPage = pageID
-		}
 	} else {
 		pageID = metadata.nextFreePage
 		pageIDBytes, err := pages.ReadBytes(pageIDSize, pageStart, metadata.nextFreePage)
@@ -86,6 +86,9 @@ func (pages *Pages) Create(pageType PageType) (uint32, error) {
 		// Update next page stack
 		nextPageID := binary.BigEndian.Uint32(pageIDBytes)
 		metadata.nextFreePage = nextPageID
+	}
+	if pageType == DataPage {
+		metadata.lastDataPage = pageID
 	}
 
 	if err := pages.writeNewPage(pageID, pageType); err != nil {

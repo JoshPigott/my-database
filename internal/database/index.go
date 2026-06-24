@@ -45,8 +45,6 @@ func newDatabase(file *os.File) (*DB, error) {
 			return nil, err
 		}
 	} else {
-		// I am going to have to rootNode but reading it lol
-		// ReadPageNode
 		rootNode, err := pages.ReadPageNode(rootID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read node: %w", err)

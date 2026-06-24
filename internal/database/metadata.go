@@ -38,7 +38,7 @@ func newDefaultMetadata() metadata {
 }
 
 // Reads metadata page and return the database metadata in a metadata struct
-func (Pages *Pages) readMetadata() (metadata, error) {
+func (Pages *Pages) ReadMetadata() (metadata, error) {
 	metadataBytes := make([]byte, metadataSize)
 	dbMetadataStart := int64(pageMetadataSize)
 	if _, err := Pages.File.Seek(dbMetadataStart, io.SeekStart); err != nil {
@@ -57,7 +57,7 @@ func (Pages *Pages) ensureMetadataPage() error {
 	if err != nil {
 		return fmt.Errorf("failed to check file info: %w", err)
 	}
-	// Checks if the file size is right
+	// Checks if the file size is right (file not corrupted)
 	if fileInfo.Size()%pageSize != 0 {
 		return fmt.Errorf("failed to have vaild pages: %w", err)
 	}
@@ -98,7 +98,7 @@ func createDatabaseMetadataBuffer(metadata metadata) []byte {
 
 // Return the number of pages that should be read
 func (Pages *Pages) getNumOfPagesToRead() (int, error) {
-	metadata, err := Pages.readMetadata()
+	metadata, err := Pages.ReadMetadata()
 	if err != nil {
 		return 0, fmt.Errorf("failed to read number of pages: %w", err)
 	}

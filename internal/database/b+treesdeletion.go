@@ -3,6 +3,7 @@ package database
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 )
 
@@ -35,7 +36,7 @@ func (n *node) delete(key string) error {
 		for i, keyVal := range n.keys {
 			if keyVal == key {
 				n.keys = append(n.keys[:i], n.keys[i+1:]...)
-				n.KeyLocations = append(n.KeyLocations[:i], n.KeyLocations[i+1:]...)
+				n.keyLocations = append(n.keyLocations[:i], n.keyLocations[i+1:]...)
 				n.pages.writeNodeToPage(n)
 				return nil
 			}
@@ -45,119 +46,161 @@ func (n *node) delete(key string) error {
 	if err := nChild.delete(key); err != nil {
 		return err
 	}
-	childkeyNum := len(n.children[i].keys)
-	underflow := childkeyNum < minKeys
-	if !underflow {
+	if !nChild.isUnderflow() {
 		return nil
 	}
 
 	isLeft := i != 0
 	isRight := i != len(n.children)-1
 
+	// Load children pages
 	if isLeft {
 		if err := n.loadChildren(i - 1); err != nil {
 			return fmt.Errorf("failed to delete key: %w", err)
-		}
-		leftKeyLen := len(n.children[i-1].keys)
-		if leftKeyLen > minKeys {
-			n.borrowFromLeft(i)
-			return nil
 		}
 	}
 	if isRight {
 		if err := n.loadChildren(i + 1); err != nil {
 			return fmt.Errorf("failed to delete key: %w", err)
 		}
-		rightKeyLen := len(n.children[i+1].keys)
-		if rightKeyLen > minKeys {
-			n.borrowFromRight(i)
-			return nil
+	}
+
+	if isLeft && n.needsLeftRedistribution(i) {
+		if err := n.leftRedistribution(i); err != nil {
+			return fmt.Errorf("failed to redistribution with left node: %w", err)
 		}
-	}
-	if isLeft {
+	} else if isRight && n.needsRightRedistribution(i) {
+		if err := n.rightRedistribution(i); err != nil {
+			return fmt.Errorf("failed to redistribution with right node: %w", err)
+		}
+	} else if isLeft {
 		n.mergeWithLeft(i)
-		return nil
+	} else if isRight {
+		n.mergeWithRight(i)
 	}
-	n.mergeWithRight(i)
 	return nil
 }
 
-// Borrow key right most key from left node to rebalance tree
-func (n *node) borrowFromLeft(i int) error {
-	var newSeparatorKey string
-	var borrowedKeyLocation *KeyLocation
+// Rewrites child and left child to have the a more split of data
+func (n *node) leftRedistribution(i int) error {
+	l := n.children[i-1]
+	r := n.children[i]
 
-	left := n.children[i-1]
-	borrowedKey := left.keys[len(left.keys)-1]
-
-	if left.leaf {
-		newSeparatorKey = borrowedKey
-		borrowedKeyLocation = left.KeyLocations[len(left.KeyLocations)-1]
-	} else {
-		newSeparatorKey = n.keys[i-1]
+	keys := make([]string, 0, len(l.keys)+len(r.keys))
+	keys = append(keys, l.keys...)
+	if !l.leaf {
+		keys = append(keys, n.keys[i-1])
 	}
+	keys = append(keys, r.keys...)
+
+	j := redistributionIndex(keys)
 
 	// Update keys
-	left.keys = left.keys[:len(left.keys)-1]
-	n.keys[i-1] = borrowedKey
-	n.children[i].keys = slices.Insert(n.children[i].keys, 0, newSeparatorKey)
-
-	// Update key locations
-	if left.leaf {
-		left.KeyLocations = left.KeyLocations[:len(left.KeyLocations)-1]
-		n.children[i].KeyLocations = slices.Insert(n.children[i].KeyLocations, 0, borrowedKeyLocation)
+	if l.leaf {
+		l.keys = keys[:j]
+		r.keys = keys[j:]
+		n.keys[i-1] = keys[j]
+	} else {
+		l.keys = keys[:j]
+		r.keys = keys[j+1:]
+		n.keys[i-1] = keys[j]
 	}
 
-	// Move children
-	if !left.leaf {
-		borrowedChild := left.children[len(left.children)-1]
-		left.children = left.children[:len(left.children)-1]
-		n.children[i].children = append([]*node{borrowedChild}, n.children[i].children...)
+	if l.leaf {
+		// Combined key locations
+		keyLocations := make([]*KeyLocation, 0, len(l.keyLocations)+len(r.keyLocations))
+		keyLocations = append(keyLocations, l.keyLocations...)
+		keyLocations = append(keyLocations, r.keyLocations...)
 
-		left.childPageIDs = left.childPageIDs[:len(left.childPageIDs)-1]
-		n.children[i].childPageIDs = append([]uint32{borrowedChild.pageID}, n.children[i].childPageIDs...)
+		// Update key locations
+		l.keyLocations = keyLocations[:j]
+		r.keyLocations = keyLocations[j:]
+	} else {
+		// Combined children
+		children := make([]*node, 0, len(l.children)+len(r.children))
+		children = append(children, l.children...)
+		children = append(children, r.children...)
+
+		// Move children
+		l.children = children[:j+1]
+		r.children = children[j+1:]
+
+		// Combined children
+		childPageIDs := make([]uint32, 0, len(l.childPageIDs)+len(r.childPageIDs))
+		childPageIDs = append(childPageIDs, l.childPageIDs...)
+		childPageIDs = append(childPageIDs, r.childPageIDs...)
+
+		// Move children pageID
+		l.childPageIDs = childPageIDs[:j+1]
+		r.childPageIDs = childPageIDs[j+1:]
 	}
+
 	// Writes nodes to disk
 	n.pages.writeNodeToPage(n)
-	n.children[i].pages.writeNodeToPage(n.children[i])
-	left.pages.writeNodeToPage(left)
+	r.pages.writeNodeToPage(r)
+	l.pages.writeNodeToPage(l)
 	return nil
 }
 
-// Borrow key left most key from right node to rebalance tree
-func (n *node) borrowFromRight(i int) {
-	right := n.children[i+1]
-	if right.leaf {
-		borrowedKey := right.keys[0]
-		right.keys = right.keys[1:]
-		n.children[i].keys = append(n.children[i].keys, borrowedKey)
-		n.keys[i] = right.keys[0]
+// Rewrites child and right child to have the a more split of data
+func (n *node) rightRedistribution(i int) error {
+	l := n.children[i]
+	r := n.children[i+1]
+
+	keys := make([]string, 0, len(l.keys)+len(r.keys))
+	keys = append(keys, l.keys...)
+	if !l.leaf {
+		keys = append(keys, n.keys[i])
+	}
+	keys = append(keys, r.keys...)
+
+	j := redistributionIndex(keys)
+
+	// Update keys
+	if l.leaf {
+		l.keys = keys[:j]
+		r.keys = keys[j:]
+		n.keys[i] = keys[j]
 	} else {
-		borrowedKey := right.keys[0]
-		right.keys = right.keys[1:]
-		n.children[i].keys = append(n.children[i].keys, n.keys[i])
-		n.keys[i] = borrowedKey
-	}
-	// Update key locations
-	if right.leaf {
-		borrowedKeyLocation := right.KeyLocations[0]
-		right.KeyLocations = right.KeyLocations[1:]
-		n.children[i].KeyLocations = append(n.children[i].KeyLocations, borrowedKeyLocation)
+		l.keys = keys[:j]
+		r.keys = keys[j+1:]
+		n.keys[i] = keys[j]
 	}
 
-	// Move children
-	if !right.leaf {
-		borrowedChild := right.children[0]
-		right.children = right.children[1:]
-		n.children[i].children = append(n.children[i].children, borrowedChild)
+	if l.leaf {
+		// Combined key locations
+		keyLocations := make([]*KeyLocation, 0, len(l.keyLocations)+len(r.keyLocations))
+		keyLocations = append(keyLocations, l.keyLocations...)
+		keyLocations = append(keyLocations, r.keyLocations...)
 
-		right.childPageIDs = right.childPageIDs[1:]
-		n.children[i].childPageIDs = append(n.children[i].childPageIDs, borrowedChild.pageID)
+		// Update key locations
+		l.keyLocations = keyLocations[:j]
+		r.keyLocations = keyLocations[j:]
+	} else {
+		// Combined children
+		children := make([]*node, 0, len(l.children)+len(r.children))
+		children = append(children, l.children...)
+		children = append(children, r.children...)
+
+		// Move children
+		l.children = children[:j+1]
+		r.children = children[j+1:]
+
+		// Combined children
+		childPageIDs := make([]uint32, 0, len(l.childPageIDs)+len(r.childPageIDs))
+		childPageIDs = append(childPageIDs, l.childPageIDs...)
+		childPageIDs = append(childPageIDs, r.childPageIDs...)
+
+		// Move children pageID
+		l.childPageIDs = childPageIDs[:j+1]
+		r.childPageIDs = childPageIDs[j+1:]
 	}
+
 	// Writes nodes to disk
 	n.pages.writeNodeToPage(n)
-	n.children[i].pages.writeNodeToPage(n.children[i])
-	right.pages.writeNodeToPage(right)
+	r.pages.writeNodeToPage(r)
+	l.pages.writeNodeToPage(l)
+	return nil
 }
 
 // Merges child node with their left sibling node
@@ -180,7 +223,7 @@ func (n *node) mergeWithLeft(i int) {
 		left.keys = append(left.keys, n.children[i].keys...)
 	} else {
 		left.keys = append(left.keys, n.children[i].keys...)
-		left.KeyLocations = append(left.KeyLocations, n.children[i].KeyLocations...)
+		left.keyLocations = append(left.keyLocations, n.children[i].keyLocations...)
 	}
 
 	// Updates linked list
@@ -223,7 +266,7 @@ func (n *node) mergeWithRight(i int) {
 		n.children[i].keys = append(n.children[i].keys, right.keys...)
 	} else {
 		n.children[i].keys = append(n.children[i].keys, right.keys...)
-		n.children[i].KeyLocations = append(n.children[i].KeyLocations, right.KeyLocations...)
+		n.children[i].keyLocations = append(n.children[i].keyLocations, right.keyLocations...)
 	}
 
 	// Updates linked list
@@ -259,4 +302,37 @@ func (n *node) loadChildren(j int) error {
 		return fmt.Errorf("failed to read right child: %w", err)
 	}
 	return nil
+}
+
+// Find the key index to split page as equal as possible in half
+// Note I should have include the key len and key location size in the calculation
+func redistributionIndex(keys []string) int {
+	shortestDistance := math.MaxInt
+	totalLen := 0
+	for _, key := range keys {
+		totalLen += len(key)
+	}
+	halfLen := totalLen / 2
+
+	currLen := 0
+	middleIndex := 0
+
+	for i, key := range keys {
+		currLen += len(key)
+		distanceFromMiddle := abs(halfLen - currLen)
+		if distanceFromMiddle < shortestDistance {
+			middleIndex = i
+			shortestDistance = distanceFromMiddle
+		} else {
+			break
+		}
+	}
+	return middleIndex + 1
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
