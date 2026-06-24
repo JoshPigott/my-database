@@ -10,7 +10,7 @@ import (
 func (pages *Pages) deleteNodePage(n *node) error {
 	buf := make([]byte, pageSize)
 
-	metadata, err := pages.readMetadata()
+	metadata, err := pages.ReadMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to get metadata: %w", err)
 	}
@@ -113,7 +113,7 @@ func formatLeafKey(n *node, pageBytes []byte, offset int) int {
 	offset += pageIDSize
 	slotID := binary.BigEndian.Uint16(pageBytes[offset : offset+slotIDSize])
 	offset += slotIDSize
-	n.KeyLocations = append(n.KeyLocations, newKeyLocation(pageID, slotID))
+	n.keyLocations = append(n.keyLocations, newKeyLocation(pageID, slotID))
 	return offset
 }
 
@@ -141,7 +141,7 @@ func (Pages *Pages) writeLeafNode(n *node) {
 	offset += pageIDSize
 
 	for i, key := range n.keys {
-		keyLocation := *n.KeyLocations[i]
+		keyLocation := *n.keyLocations[i]
 		offset = addLeafKey(&buf, keyLocation.PageID, keyLocation.SlotID, offset, key)
 	}
 
@@ -215,4 +215,53 @@ func addInternalKey(buf *[]byte, offset int, key string, childPageID uint32) int
 	copy((*buf)[offset:offset+len(key)], keyBytes)
 	offset += len(key)
 	return offset
+}
+
+// Checks if data is less than half a page size
+func (n *node) isUnderflow() bool {
+	currSize := n.getDataSize()
+	return currSize < halfPageSize
+}
+
+// Checks if all the data will fit on one page or not
+func (n *node) isOverflow() bool {
+	currSize := n.getDataSize()
+	return currSize > pageSize
+}
+
+func (n *node) getDataSize() int {
+	currSize := pageMetadataSize
+	if n.leaf {
+		currSize += pageIDSize
+		for _, key := range n.keys {
+			currSize += keyLenStorageSize
+			currSize += len(key)
+			currSize += slotIDSize
+			currSize += pageIDSize
+		}
+	} else {
+		for _, key := range n.keys {
+			currSize += keyLenStorageSize
+			currSize += len(key)
+			currSize += pageIDSize
+		}
+		currSize += pageIDSize
+	}
+	return currSize
+}
+
+// Check if child + left exceeds page size
+func (n *node) needsLeftRedistribution(i int) bool {
+	childSize := n.children[i].getDataSize()
+	leftChildSize := n.children[i-1].getDataSize()
+	totalSize := childSize + leftChildSize - pageMetadataSize
+	return totalSize > pageSize
+}
+
+// Check if child + right exceeds page size
+func (n *node) needsRightRedistribution(i int) bool {
+	childSize := n.children[i].getDataSize()
+	leftChildSize := n.children[i+1].getDataSize()
+	totalSize := childSize + leftChildSize - pageMetadataSize
+	return totalSize > pageSize
 }

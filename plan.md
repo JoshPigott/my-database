@@ -61,8 +61,3 @@ I also don't think I am using that map
 
 I should just reaftor of main like maybe into tests
 
-
-Just try to get the basic delete working. I think I should just treat m as 4.
-And then later on chagne it to where where half max pages size or somthing like that
-
-What shoul I do with double keys

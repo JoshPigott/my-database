@@ -7,12 +7,6 @@ import (
 	"strings"
 )
 
-const (
-	m       = 5
-	maxKeys = m - 1
-	minKeys = m / 2
-)
-
 type BTree struct {
 	root *node
 }
@@ -21,7 +15,7 @@ type node struct {
 	keys         []string
 	children     []*node
 	childPageIDs []uint32
-	KeyLocations []*KeyLocation
+	keyLocations []*KeyLocation
 	Next         *node
 	NextID       uint32
 	leaf         bool
@@ -74,22 +68,11 @@ func newKeyLocation(pageID uint32, slotID uint16) *KeyLocation {
 	}
 }
 
-// func (n *node) child(i int) (*node, error) {
-// 	if n.children[i] != nil {
-// 		return n.children[i], nil
-// 	} else if n.childPageIDs[i] != 0 {
-// 		return n.pages.ReadPageNode(n.childPageIDs[i])
-// 	} else {
-// 		return nil, nil
-// 	}
-// }
-
 // A wrapper for insert to handle spliting of the root
 func (DB *DB) Insert(key string, pageID uint32, slotID uint16) {
 	KeyLocation := newKeyLocation(pageID, slotID)
 	splitResult, left, right := DB.Pages.insert(DB.T.root, key, KeyLocation)
 	if splitResult != nil {
-		// rootPageLink
 		newRoot, _ := DB.Pages.newNode(false) // IMPORTANT I still need to catch my error
 		newRoot.addKey(*splitResult, left, right, nil)
 		DB.Pages.writeNodeToPage(newRoot)
@@ -107,9 +90,8 @@ func (DB *DB) FindKeyLocation(key string) (uint32, uint16, bool, error) {
 	if !inTree {
 		return 0, 0, false, nil
 	}
-	// I need to find the index where the key happens
 	i := slices.Index(n.keys, key)
-	keyLocation := *n.KeyLocations[i]
+	keyLocation := *n.keyLocations[i]
 	return keyLocation.PageID, keyLocation.SlotID, true, nil
 }
 
@@ -174,16 +156,16 @@ func (n *node) addKey(key string, left *node, right *node, KeyLocation *KeyLocat
 
 	// Add key location
 	if n.leaf {
-		n.KeyLocations = append(n.KeyLocations, nil)
-		copy(n.KeyLocations[i+1:], n.KeyLocations[i:])
-		n.KeyLocations[i] = KeyLocation
+		n.keyLocations = append(n.keyLocations, nil)
+		copy(n.keyLocations[i+1:], n.keyLocations[i:])
+		n.keyLocations[i] = KeyLocation
 	}
 
 	n.addChildern(left, right)
 	left = nil
 	right = nil
 
-	if len(n.keys) > maxKeys {
+	if n.isOverflow() {
 		splitResult, left, right = n.split()
 	}
 
@@ -227,11 +209,10 @@ func (n *node) addChildern(left *node, right *node) {
 func (n *node) split() (*string, *node, *node) {
 	right, _ := n.pages.newNode(n.leaf)
 
-	middlekeyIndex := maxKeys / 2
+	middlekeyIndex := len(n.keys) / 2
 	middlekey := &n.keys[middlekeyIndex]
 
 	// Updates keys
-	// If leaf spilt right key stays in leaf
 	if n.leaf == false {
 		rightStart := middlekeyIndex + 1
 		right.keys = make([]string, len(n.keys[rightStart:]))
@@ -246,9 +227,9 @@ func (n *node) split() (*string, *node, *node) {
 	// Updates KeyLocation
 	if n.leaf {
 		rightStart := middlekeyIndex
-		right.KeyLocations = make([]*KeyLocation, len(n.KeyLocations[rightStart:]))
-		copy(right.KeyLocations, n.KeyLocations[rightStart:])
-		n.KeyLocations = n.KeyLocations[:middlekeyIndex]
+		right.keyLocations = make([]*KeyLocation, len(n.keyLocations[rightStart:]))
+		copy(right.keyLocations, n.keyLocations[rightStart:])
+		n.keyLocations = n.keyLocations[:middlekeyIndex]
 	}
 
 	// Updates children (splits into different nodes)
@@ -356,7 +337,7 @@ func PrintOutNode(n *node) {
 	if n.leaf == true {
 		fmt.Println("n.Next:", n.Next)
 		fmt.Println("n.NextID:", n.NextID)
-		for _, keyLocation := range n.KeyLocations {
+		for _, keyLocation := range n.keyLocations {
 			fmt.Println("pageID:", keyLocation.PageID)
 			fmt.Println("slotID:", keyLocation.SlotID)
 		}

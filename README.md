@@ -56,4 +56,27 @@ Each page size is 4096 bytes or 4KB
     - Note this start of the page and fills upwards
     - [keyLength] [valueLength] [key] [value]
 
+**Node disk strutrue leaf**
+- metadata
+- Next leaf pageID
+- key 0 length
+- key 0 
+- PageID (where value 0 is)
+- slotID (where value 0 is)
+- key 1 length
+- key 1
+- PageID (where value 1 is)
+- slotID (where value 1 is)
+
+
+**Node disk strutrue internal**
+- metadata
+- child 0 PageID 
+- key 0 length
+- key 0
+- child 1 PageID
+- key 1 length
+- key 1
+- child 2 PageID
+
 note duplicates keys cannot be added to the tree will regret second keys
