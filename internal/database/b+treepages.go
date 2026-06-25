@@ -255,13 +255,21 @@ func (n *node) needsLeftRedistribution(i int) bool {
 	childSize := n.children[i].getDataSize()
 	leftChildSize := n.children[i-1].getDataSize()
 	totalSize := childSize + leftChildSize - pageMetadataSize
+	// Add on separated key that comes down
+	if !n.children[i].leaf {
+		totalSize += keyLenStorageSize + maxKeySize + pageIDSize
+	}
 	return totalSize > pageSize
 }
 
 // Check if child + right exceeds page size
 func (n *node) needsRightRedistribution(i int) bool {
 	childSize := n.children[i].getDataSize()
-	leftChildSize := n.children[i+1].getDataSize()
-	totalSize := childSize + leftChildSize - pageMetadataSize
+	rightChildSize := n.children[i+1].getDataSize()
+	totalSize := childSize + rightChildSize - pageMetadataSize
+	// Add on separated key that comes down
+	if !n.children[i].leaf {
+		totalSize += keyLenStorageSize + maxKeySize + pageIDSize
+	}
 	return totalSize > pageSize
 }
