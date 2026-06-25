@@ -135,7 +135,7 @@ func (DB *DB) Delete(key string) error {
 }
 
 // Return in a map of the key -> value. Remove duplicates and deleted records
-func (DB *DB) SelectAll() (map[string]string, error) { // Note this no longer works (will get fix in reafactor)
+func (DB *DB) SelectAll() (map[string]string, error) {
 	data := map[string]string{}
 	numOfPagesToRead, err := DB.Pages.getNumOfPagesToRead()
 	if err != nil {
@@ -144,9 +144,13 @@ func (DB *DB) SelectAll() (map[string]string, error) { // Note this no longer wo
 	// Loops over each page
 	for pageID := 1; pageID <= numOfPagesToRead; pageID++ {
 		dataRecords, err := DB.Pages.read(uint32(pageID))
+		if errors.Is(err, ErrNotDataPage) {
+			continue
+		}
 		if err != nil {
 			return data, fmt.Errorf("failed to format data: %w", err)
 		}
+
 		for _, dataRecord := range dataRecords {
 			// Check  if value has been deleted
 			if dataRecord.slot.flag != slotNormal {

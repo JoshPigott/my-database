@@ -55,9 +55,13 @@ Do a good readme
 
 Do in the refactor
 At some I will need to firgure out test cause my main file is fucked
-I see no reason for Pages to not be Pages but IDK lol
+I see no reason for Pages to not be Pages but IDK lol like the catpitals
 At some point I will need to catch my errors
 I also don't think I am using that map
+I need to remove unextported capital reorder the funcations
 
 I should just reaftor of main like maybe into tests
 
+retribution can fail with code will wrong key size ect.
+I think I should the point where I merge I think I should only mergre if total is 
+I also think where should a bug on like a mergre where you change seperater keys if you know what I mean

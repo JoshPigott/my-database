@@ -6,12 +6,14 @@ import (
 	"io"
 )
 
+var ErrNotDataPage = errors.New("failed to read page due to not data page")
+
 func (Pages *Pages) read(pageID uint32) ([]record, error) {
 	_, _, dataRecords, err := Pages.readFull(pageID)
 	return dataRecords, err
 }
 
-// Read page to get the data in the page
+// Read page to get the data in a data page
 func (Pages *Pages) readFull(pageID uint32) ([]byte, []slot, []record, error) {
 	pageOffSet := getPageOffset(pageID)
 	pageBytes := make([]byte, pageSize)
@@ -22,6 +24,9 @@ func (Pages *Pages) readFull(pageID uint32) ([]byte, []slot, []record, error) {
 		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed to read file: %w", err)
 	}
 	pageMetadata := formatPageMetadata(pageBytes)
+	if pageMetadata.pageType != DataPage {
+		return []byte{}, []slot{}, []record{}, ErrNotDataPage
+	}
 	slots := formatSlots(pageBytes, pageMetadata)
 	dataRecords := readData(pageBytes, slots)
 	return pageBytes, slots, dataRecords, nil

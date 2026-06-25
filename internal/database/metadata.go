@@ -68,7 +68,7 @@ func (Pages *Pages) ensureMetadataPage() error {
 	return nil
 }
 
-// Formats bytes into a metadata struc
+// Formats bytes into a metadata struct
 func formatMetadata(metadataBytes []byte) metadata {
 	return metadata{
 		rootPageID:    binary.BigEndian.Uint32(metadataBytes[rootPageIDIndex:totalNumPagesIndex]),
@@ -101,9 +101,6 @@ func (Pages *Pages) getNumOfPagesToRead() (int, error) {
 	metadata, err := Pages.ReadMetadata()
 	if err != nil {
 		return 0, fmt.Errorf("failed to read number of pages: %w", err)
-	}
-	if metadata.nextFreePage != 0 {
-		return int(metadata.nextFreePage), nil
 	}
 	return int(metadata.totalNumPages), nil
 }
