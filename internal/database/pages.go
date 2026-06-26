@@ -9,7 +9,6 @@ import (
 type PageType int8
 
 const (
-	FileName     = "data/bubbly.db"
 	pageSize     = 4096
 	halfPageSize = pageSize / 2
 	maxKeySize   = 256

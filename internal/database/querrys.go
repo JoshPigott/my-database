@@ -7,9 +7,14 @@ import (
 	"os"
 )
 
-// Opens up database file a makes sure there is a metedata page
 func Open() (*DB, error) {
-	file, err := os.OpenFile(FileName, os.O_RDWR|os.O_CREATE, 0644)
+	filename := "data/bubbly.db"
+	return openDefault(filename)
+}
+
+// Opens up database file a makes sure there is a metedata page
+func openDefault(filename string) (*DB, error) {
+	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open page: %w", err)
 	}

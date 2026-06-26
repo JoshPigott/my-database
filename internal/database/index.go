@@ -28,7 +28,7 @@ func newDatabase(file *os.File) (*DB, error) {
 		pageIDToNode: map[uint32]*node{},
 	}
 
-	if err := pages.ensureMetadataPage(); err != nil {
+	if err := pages.ensureMetadataPage(file); err != nil {
 		return nil, fmt.Errorf("failed to create metadata page: %w", err)
 	}
 	if err := pages.createFirstDataPage(); err != nil {
