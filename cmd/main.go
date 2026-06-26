@@ -4,7 +4,6 @@ import (
 	"bubbly-database/internal/database"
 	"fmt"
 	"io"
-	"math/rand/v2"
 )
 
 var DB *database.DB
@@ -20,8 +19,6 @@ func testDatabase() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	addKeysValues(2)
-	// deleteKeysValues()
 	if err := DB.Close(); err != nil {
 		fmt.Println(err)
 	}
@@ -66,45 +63,5 @@ func lookAtData() {
 	fmt.Println("Map length:", len(data))
 	for key, value := range data {
 		fmt.Printf("key: %-12s value: %-22s\n", key, value)
-	}
-}
-
-func deleteKeysValues() {
-	rand.Shuffle(len(insertedKeys), func(i, j int) {
-		insertedKeys[i], insertedKeys[j] = insertedKeys[j], insertedKeys[i]
-	})
-
-	for _, key := range insertedKeys {
-		// fmt.Printf("DB.Delete(%s)\n", key)
-		DB.Delete(key)
-	}
-}
-
-// For testing: add lots of different key values
-func addKeysValues(amount int) {
-	insertedKeys = insertedKeys[:0]
-
-	// Create indices 0..202
-	indices := make([]int, amount)
-	for i := range indices {
-		indices[i] = i
-	}
-
-	// Shuffle them
-	rand.Shuffle(len(indices), func(i, j int) {
-		indices[i], indices[j] = indices[j], indices[i]
-	})
-
-	// Insert in random order
-	for _, i := range indices {
-		key := fmt.Sprintf(
-			"dataset_worksheet_user_profile_system_generated_long_form_key_field_identifier__%04d_v1",
-			i,
-		)
-		val := fmt.Sprintf("%02x", i%256)
-
-		// fmt.Printf("DB.AddToPage(\"%s\", \"%s\")\n", key, val)
-		DB.AddToPage(key, val)
-		insertedKeys = append(insertedKeys, key)
 	}
 }

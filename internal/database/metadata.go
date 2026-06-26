@@ -52,8 +52,8 @@ func (Pages *Pages) ReadMetadata() (metadata, error) {
 }
 
 // Creates a metadata page if none
-func (Pages *Pages) ensureMetadataPage() error {
-	fileInfo, err := os.Stat(FileName)
+func (Pages *Pages) ensureMetadataPage(file *os.File) error {
+	fileInfo, err := os.Stat(file.Name())
 	if err != nil {
 		return fmt.Errorf("failed to check file info: %w", err)
 	}
