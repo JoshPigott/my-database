@@ -54,12 +54,9 @@ Do a good readme
 
 
 Do in the refactor
-At some point I will need to catch my errors
-I also don't think I am using that map
 I need to remove unextported capital reorder the funcations
 Like somtime non leaf nodes have NextID which should not the cases
 leftRedistribution and rightRedistribution are not dry enought
-That I not uses data in my records
+That I not uses data in my records but I do for select
 
-I need to remove unextported capital reorder the funcations
-Then should commit
+At some point I will need to catch my errors

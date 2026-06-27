@@ -95,7 +95,9 @@ func (db *DB) AddToPage(key string, value string) error {
 	}
 
 	// Add to b+tree
-	db.Insert(key, pageID, pageMetadata.numEntries)
+	if err := db.Insert(key, pageID, pageMetadata.numEntries); err != nil {
+		return fmt.Errorf("failed to add to page: %w", err)
+	}
 
 	// Update page metadata
 	pageMetadata.numEntries += 1

@@ -4,7 +4,6 @@ import (
 	"bubbly-database/internal/database"
 	"fmt"
 	"io"
-	"strconv"
 )
 
 var DB *database.DB
@@ -20,25 +19,6 @@ func testDatabase() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	num := 1000000000000000000
-	amount := 500
-	half := strconv.Itoa(num + amount/2)
-	for i := 0; i < amount; i += 1 {
-		key := strconv.Itoa(i + num)
-		val := strconv.Itoa(i)
-		DB.AddToPage(key, val)
-	}
-	DB.Delete("1000000000000000132")
-	DB.Delete(half)
-	// allData, _ := DB.SelectAll()
-	// fmt.Println("allData:", allData)
-	// DB.T.PrintLinkedList()
-
-	selectedData, err := DB.SelectWhere(database.GreaterThan, half)
-	if err != nil {
-		fmt.Println("failed to select data: %w", err)
-	}
-	fmt.Println("The selected data:", selectedData)
 	if err := DB.Close(); err != nil {
 		fmt.Println(err)
 	}
@@ -72,7 +52,6 @@ func lookAtFile() {
 		fmt.Println(bytes[i*4096 : (i+1)*4096])
 	}
 	// fmt.Println(bytes)
-
 }
 
 func lookAtData() {
