@@ -54,11 +54,12 @@ Do a good readme
 
 
 Do in the refactor
-At some I will need to firgure out test cause my main file is fucked
 I see no reason for Pages to not be Pages but IDK lol like the catpitals
 At some point I will need to catch my errors
 I also don't think I am using that map
 I need to remove unextported capital reorder the funcations
+IDK about DB verus db
+Like somtime non leaf nodes have NextID which should not the cases
 
 I should just reaftor of main like maybe into tests
 

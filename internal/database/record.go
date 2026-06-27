@@ -2,6 +2,8 @@ package database
 
 import (
 	"encoding/binary"
+	"fmt"
+	"strings"
 )
 
 type record struct {
@@ -83,4 +85,107 @@ func getDataOffset(freeSpace int, dataSize int, numEntries uint16) int {
 	dataStart := totalSlotOffset + freeSpace
 	newDataOffset := dataStart - dataSize
 	return newDataOffset
+}
+
+// Get the value with a give key location
+func (db *DB) selectValue(keyLocation *KeyLocation) (string, string, error) {
+	slotBytes, err := db.Pages.readSlot(keyLocation.PageID, keyLocation.SlotID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to select value: %w", err)
+	}
+	formatedSlot := formatSlot(slotBytes)
+	dataBytes, err := db.Pages.readData(formatedSlot, keyLocation.PageID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to select value: %w", err)
+	}
+	key, value := readEntry(dataBytes)
+	return key, value, nil
+}
+
+// Used to slecet than or equal to a boundary key
+func (DB *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) {
+	var selectedData []data
+	n, _, err := DB.T.findNode(boundaryKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find leaf node: %w", err)
+	}
+	// Adds in speffic keys from the first node
+	for i, key := range n.keys {
+		if equalTo && strings.Compare(key, boundaryKey) >= 0 {
+			key, value, err := DB.selectValue(n.keyLocations[i])
+			if err != nil {
+				return nil, fmt.Errorf("failed to get data from key location: %w", err)
+			}
+			data := newData(key, value)
+			selectedData = append(selectedData, data)
+		}
+		if !equalTo && strings.Compare(key, boundaryKey) > 0 {
+			key, value, err := DB.selectValue(n.keyLocations[i])
+			if err != nil {
+				return nil, fmt.Errorf("failed to get data from key location: %w", err)
+			}
+			data := newData(key, value)
+			selectedData = append(selectedData, data)
+		}
+	}
+	// Adds every key in the linked list until end
+	for n.NextID != 0 {
+		if n.Next != nil {
+			n = n.Next
+		} else {
+			n, _ = n.pages.ReadPageNode(n.NextID)
+		}
+		for _, keyLocation := range n.keyLocations {
+			key, value, err := DB.selectValue(keyLocation)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get data from key location: %w", err)
+			}
+			data := newData(key, value)
+			selectedData = append(selectedData, data)
+		}
+	}
+	return &selectedData, nil
+}
+
+// Select all data less than a spefic boundary keys
+func (DB *DB) getLessThan(boundaryKey string, equalTo bool) (*[]data, error) { // I need to the boundary key check
+	var selectedData []data
+	// Get left most node
+	n := DB.T.root
+	for !n.leaf {
+		n = n.children[0]
+	}
+	for n != nil {
+		for _, keyLocation := range n.keyLocations {
+			key, value, err := DB.selectValue(keyLocation)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get data from key location: %w", err)
+			}
+			if equalTo && strings.Compare(boundaryKey, key) == 0 {
+				data := newData(key, value)
+				selectedData = append(selectedData, data)
+				return &selectedData, nil
+			}
+			if strings.Compare(boundaryKey, key) <= 0 {
+				return &selectedData, nil
+			}
+
+			data := newData(key, value)
+			selectedData = append(selectedData, data)
+
+			if equalTo && strings.Compare(boundaryKey, key) <= 0 {
+				return &selectedData, nil
+			}
+		}
+
+		switch {
+		case n.Next != nil:
+			n = n.Next
+		case n.NextID != 0:
+			n, _ = n.pages.ReadPageNode(n.NextID)
+		default:
+			n = nil
+		}
+	}
+	return &selectedData, nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -20,10 +21,10 @@ func TestOpenClose(t *testing.T) {
 	filename := filepath.Join(dir, "bubbly-test.db")
 	db, err := openDefault(filename)
 	if err != nil {
-		t.Fatal("failed to open database")
+		t.Fatalf("failed to open database: %v", err)
 	}
 	if err := db.Close(); err != nil {
-		t.Errorf("failed to close database")
+		t.Errorf("failed to close database: %v", err)
 	}
 }
 
@@ -32,7 +33,7 @@ func TestOneNodeInsert(t *testing.T) {
 	filename := filepath.Join(dir, "bubbly-test.db")
 	db, err := openDefault(filename)
 	if err != nil {
-		t.Fatal("failed to open database")
+		t.Fatalf("failed to open database: %v", err)
 	}
 	tests := []struct {
 		key string
@@ -56,7 +57,7 @@ func TestOneNodeInsert(t *testing.T) {
 		}
 	}
 	if err := db.Close(); err != nil {
-		t.Errorf("failed to close database")
+		t.Errorf("failed to close database: %v", err)
 	}
 }
 
@@ -67,7 +68,7 @@ func TestInsert(t *testing.T) {
 	filename := filepath.Join(dir, "bubbly-test.db")
 	db, err := openDefault(filename)
 	if err != nil {
-		t.Fatal("failed to open database")
+		t.Fatalf("failed to open database: %v", err)
 	}
 
 	indices := make([]int, amount)
@@ -93,7 +94,7 @@ func TestInsert(t *testing.T) {
 		insertedKeys = append(insertedKeys, key)
 	}
 	if err := db.Close(); err != nil {
-		t.Errorf("failed to close database")
+		t.Errorf("failed to close database: %v", err)
 	}
 }
 
@@ -104,7 +105,7 @@ func TestInsertWithClose(t *testing.T) {
 	filename := filepath.Join(dir, "bubbly-test.db")
 	db, err := openDefault(filename)
 	if err != nil {
-		t.Fatal("failed to open database")
+		t.Fatalf("failed to open database: %v", err)
 	}
 
 	indices := make([]int, amount)
@@ -122,11 +123,11 @@ func TestInsertWithClose(t *testing.T) {
 		if i == amount/2 {
 			// Closes and reopens file / database
 			if err := db.Close(); err != nil {
-				t.Errorf("failed to close database")
+				t.Errorf("failed to close database: %v", err)
 			}
 			db, err = openDefault(filename)
 			if err != nil {
-				t.Fatal("failed to open database")
+				t.Fatalf("failed to open database: %v", err)
 			}
 		}
 		key := fmt.Sprintf(
@@ -140,7 +141,7 @@ func TestInsertWithClose(t *testing.T) {
 		insertedKeys = append(insertedKeys, key)
 	}
 	if err := db.Close(); err != nil {
-		t.Errorf("failed to close database")
+		t.Errorf("failed to close database: %v", err)
 	}
 }
 
@@ -149,7 +150,7 @@ func TestOneNodeDelete(t *testing.T) {
 	filename := filepath.Join(dir, "bubbly-test.db")
 	db, err := openDefault(filename)
 	if err != nil {
-		t.Fatal("failed to open database")
+		t.Fatalf("failed to open database: %v", err)
 	}
 	tests := []struct {
 		key string
@@ -178,7 +179,7 @@ func TestOneNodeDelete(t *testing.T) {
 		}
 	}
 	if err := db.Close(); err != nil {
-		t.Errorf("failed to close database")
+		t.Errorf("failed to close database: %v", err)
 	}
 }
 
@@ -189,7 +190,7 @@ func TestDelete(t *testing.T) {
 	filename := filepath.Join(dir, "bubbly-test.db")
 	db, err := openDefault(filename)
 	if err != nil {
-		t.Fatal("failed to open database")
+		t.Fatalf("failed to open database: %v", err)
 	}
 
 	indices := make([]int, amount)
@@ -227,7 +228,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	if err := db.Close(); err != nil {
-		t.Errorf("failed to close database")
+		t.Errorf("failed to close databasen: %v", err)
 	}
 }
 
@@ -238,7 +239,7 @@ func TestDeleteWithClose(t *testing.T) {
 	filename := filepath.Join(dir, "bubbly-test.db")
 	db, err := openDefault(filename)
 	if err != nil {
-		t.Fatal("failed to open database")
+		t.Fatalf("failed to open database: %v", err)
 	}
 
 	indices := make([]int, amount)
@@ -256,11 +257,11 @@ func TestDeleteWithClose(t *testing.T) {
 		if i == amount/2 {
 			// Closes and reopens file / database
 			if err := db.Close(); err != nil {
-				t.Errorf("failed to close database")
+				t.Errorf("failed to close database: %v", err)
 			}
 			db, err = openDefault(filename)
 			if err != nil {
-				t.Fatal("failed to open database")
+				t.Fatalf("failed to open database: %v", err)
 			}
 		}
 		key := fmt.Sprintf(
@@ -283,11 +284,11 @@ func TestDeleteWithClose(t *testing.T) {
 		if i == amount/2 {
 			// Closes and reopens file / database
 			if err := db.Close(); err != nil {
-				t.Errorf("failed to close database")
+				t.Errorf("failed to close database: %v", err)
 			}
 			db, err = openDefault(filename)
 			if err != nil {
-				t.Fatal("failed to open database")
+				t.Fatalf("failed to open database: %v", err)
 			}
 		}
 		if err := db.Delete(key); err != nil {
@@ -296,7 +297,7 @@ func TestDeleteWithClose(t *testing.T) {
 	}
 
 	if err := db.Close(); err != nil {
-		t.Errorf("failed to close database")
+		t.Errorf("failed to close database: %v", err)
 	}
 }
 
@@ -445,7 +446,7 @@ func TestSelectInsertDeleteReopen(t *testing.T) {
 		}
 	}
 	if err := db.Close(); err != nil {
-		t.Errorf("failed to close database")
+		t.Errorf("failed to close database: %v", err)
 	}
 }
 
@@ -668,4 +669,192 @@ func TestSelectAll_Stress(t *testing.T) {
 			t.Errorf("mismatch key=%s expected=%s got=%s", k, v, got[k])
 		}
 	}
+}
+
+// -------------------------
+// Select where testing
+// -------------------------
+
+func TestSelectWhere(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "bubbly-test.db")
+
+	db, err := openDefault(filename)
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer db.Close()
+
+	const (
+		base   = 1000000000000000000
+		amount = 500
+	)
+
+	// Insert keys:
+	// 1000000000000000000 -> "0"
+	// ...
+	// 1000000000000000499 -> "499"
+	for i := 0; i < amount; i++ {
+		key := strconv.Itoa(base + i)
+		val := strconv.Itoa(i)
+
+		if err := db.AddToPage(key, val); err != nil {
+			t.Fatalf("failed to add %q -> %q: %v", key, val, err)
+		}
+	}
+
+	// Delete a couple to make sure deleted records
+	// never appear in results.
+	deleted1 := strconv.Itoa(base + 132)
+	deleted2 := strconv.Itoa(base + 250)
+
+	if err := db.Delete(deleted1); err != nil {
+		t.Fatalf("delete failed: %v", err)
+	}
+	if err := db.Delete(deleted2); err != nil {
+		t.Fatalf("delete failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		condition MathConditions
+		boundary  string
+		wantCount int
+	}{
+		{
+			name:      "greater than",
+			condition: GreaterThan,
+			boundary:  strconv.Itoa(base + 250),
+			wantCount: 249, // 251..499
+		},
+		{
+			name:      "greater than or equal",
+			condition: GreaterThanOrEqualTo,
+			boundary:  strconv.Itoa(base + 250),
+			wantCount: 249, // 250 deleted
+		},
+		{
+			name:      "less than",
+			condition: LessThan,
+			boundary:  strconv.Itoa(base + 250),
+			wantCount: 249, // 0..249 except 132
+		},
+		{
+			name:      "less than or equal",
+			condition: LessThanOrEqualTo,
+			boundary:  strconv.Itoa(base + 250),
+			wantCount: 249, // 250 deleted
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := db.SelectWhere(tt.condition, tt.boundary)
+			if err != nil {
+				t.Fatalf("SelectWhere failed: %v", err)
+			}
+
+			if len(*got) != tt.wantCount {
+				t.Fatalf(
+					"expected %d rows, got %d",
+					tt.wantCount,
+					len(*got),
+				)
+			}
+
+			// Deleted records should never appear.
+			for _, d := range *got {
+				if d.key == deleted1 {
+					t.Fatalf("deleted key %q returned", deleted1)
+				}
+				if d.key == deleted2 {
+					t.Fatalf("deleted key %q returned", deleted2)
+				}
+			}
+		})
+	}
+}
+func TestSelectWhere_ReopenDB(t *testing.T) {
+	db, dir, deleted1, deleted2 := setupSelectWhereDB(t)
+	filename := filepath.Join(dir, "bubbly-test.db")
+
+	db.Close()
+
+	// reopen DB from disk
+	db2, err := openDefault(filename)
+	if err != nil {
+		t.Fatalf("failed to reopen db: %v", err)
+	}
+	defer db2.Close()
+
+	tests := []struct {
+		name      string
+		condition MathConditions
+		boundary  string
+		wantCount int
+	}{
+		{
+			name:      "greater than",
+			condition: GreaterThan,
+			boundary:  strconv.Itoa(1000000000000000000 + 250),
+			wantCount: 249,
+		},
+		// same table...
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := db2.SelectWhere(tt.condition, tt.boundary)
+			if err != nil {
+				t.Fatalf("SelectWhere failed: %v", err)
+			}
+
+			if len(*got) != tt.wantCount {
+				t.Fatalf("expected %d, got %d", tt.wantCount, len(*got))
+			}
+
+			for _, d := range *got {
+				if d.key == deleted1 || d.key == deleted2 {
+					t.Fatalf("deleted key returned after reopen: %q", d.key)
+				}
+			}
+		})
+	}
+}
+
+// Note this utils funcation for TestSelectWhere_ReopenDB
+func setupSelectWhereDB(t *testing.T) (db *DB, dir string, deleted1, deleted2 string) {
+	dir = t.TempDir()
+	filename := filepath.Join(dir, "bubbly-test.db")
+
+	db, err := openDefault(filename)
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+
+	const (
+		base   = 1000000000000000000
+		amount = 500
+	)
+
+	for i := 0; i < amount; i++ {
+		key := strconv.Itoa(base + i)
+		val := strconv.Itoa(i)
+
+		if err := db.AddToPage(key, val); err != nil {
+			t.Fatalf("insert failed: %v", err)
+		}
+	}
+
+	deleted1 = strconv.Itoa(base + 132)
+	deleted2 = strconv.Itoa(base + 250)
+
+	if err := db.Delete(deleted1); err != nil {
+		t.Fatalf("delete failed: %v", err)
+	}
+	if err := db.Delete(deleted2); err != nil {
+		t.Fatalf("delete failed: %v", err)
+	}
+
+	return db, dir, deleted1, deleted2
 }
