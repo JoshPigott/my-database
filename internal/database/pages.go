@@ -24,7 +24,7 @@ const (
 )
 
 // Write new page adding default metadata
-func (Pages *Pages) writeNewPage(pageID uint32, pageType PageType) error {
+func (pages *Pages) writeNewPage(pageID uint32, pageType PageType) error {
 	bytes := make([]byte, pageSize)
 
 	pageMetadata := pageMetadata{
@@ -38,7 +38,7 @@ func (Pages *Pages) writeNewPage(pageID uint32, pageType PageType) error {
 	buf := createMetadataBuffer(pageMetadata)
 	copy(bytes, buf)
 
-	if err := Pages.write(bytes, pageID, pageType); err != nil {
+	if err := pages.write(bytes, pageID, pageType); err != nil {
 		return fmt.Errorf("failed to write page: %w", err)
 	}
 
@@ -46,11 +46,11 @@ func (Pages *Pages) writeNewPage(pageID uint32, pageType PageType) error {
 }
 
 // Used to create metedata page for the database. Sets metadata
-func (Pages *Pages) createMetadataPage() error {
+func (pages *Pages) createMetadataPage() error {
 	// Metadata page is always page 1
 	const metadataPageID uint32 = 1
 
-	if err := Pages.writeNewPage(metadataPageID, MetadataPage); err != nil {
+	if err := pages.writeNewPage(metadataPageID, MetadataPage); err != nil {
 		return err
 	}
 
@@ -60,7 +60,7 @@ func (Pages *Pages) createMetadataPage() error {
 		nextFreePage:  0,
 	}
 
-	return Pages.updateMetadata(metadata)
+	return pages.updateMetadata(metadata)
 }
 
 // Creates all pages
@@ -101,15 +101,15 @@ func (pages *Pages) Create(pageType PageType) (uint32, error) {
 }
 
 // Creates the first data page when need and no more
-func (Pages *Pages) createFirstDataPage() error {
-	info, err := Pages.File.Stat()
+func (pages *Pages) createFirstDataPage() error {
+	info, err := pages.File.Stat()
 	if err != nil {
 		return fmt.Errorf("failed to read database size: %w", err)
 	}
 	fileSize := info.Size()
 	// Checks if only metadata page
 	if fileSize == pageSize {
-		_, err := Pages.Create(DataPage)
+		_, err := pages.Create(DataPage)
 		if err != nil {
 			return fmt.Errorf("failed to create new data page: %w", err)
 		}
@@ -142,15 +142,15 @@ func getDataBuffer(key string, value string, dataSize int) []byte {
 }
 
 // Get next data page to write to and returns new data page info
-func (Pages *Pages) ensureWritablePage() (pageMetadata, uint32, error) {
+func (pages *Pages) ensureWritablePage() (pageMetadata, uint32, error) {
 	var pageMetadata pageMetadata
 	// create a new data page
-	pageID, err := Pages.Create(DataPage)
+	pageID, err := pages.Create(DataPage)
 	if err != nil {
 		return pageMetadata, pageID, fmt.Errorf("failed to add to page %w", err)
 	}
 	// Compute new page values
-	pageMetadata, err = Pages.readPageMetadata(pageID)
+	pageMetadata, err = pages.readPageMetadata(pageID)
 	if err != nil {
 		return pageMetadata, pageID, fmt.Errorf("failed to get metadata: %w", err)
 	}

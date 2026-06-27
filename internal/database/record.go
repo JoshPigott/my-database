@@ -103,16 +103,16 @@ func (db *DB) selectValue(keyLocation *KeyLocation) (string, string, error) {
 }
 
 // Used to slecet than or equal to a boundary key
-func (DB *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) {
+func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) {
 	var selectedData []data
-	n, _, err := DB.T.findNode(boundaryKey)
+	n, _, err := db.T.findNode(boundaryKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find leaf node: %w", err)
 	}
 	// Adds in speffic keys from the first node
 	for i, key := range n.keys {
 		if equalTo && strings.Compare(key, boundaryKey) >= 0 {
-			key, value, err := DB.selectValue(n.keyLocations[i])
+			key, value, err := db.selectValue(n.keyLocations[i])
 			if err != nil {
 				return nil, fmt.Errorf("failed to get data from key location: %w", err)
 			}
@@ -120,7 +120,7 @@ func (DB *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) {
 			selectedData = append(selectedData, data)
 		}
 		if !equalTo && strings.Compare(key, boundaryKey) > 0 {
-			key, value, err := DB.selectValue(n.keyLocations[i])
+			key, value, err := db.selectValue(n.keyLocations[i])
 			if err != nil {
 				return nil, fmt.Errorf("failed to get data from key location: %w", err)
 			}
@@ -136,7 +136,7 @@ func (DB *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) {
 			n, _ = n.pages.ReadPageNode(n.NextID)
 		}
 		for _, keyLocation := range n.keyLocations {
-			key, value, err := DB.selectValue(keyLocation)
+			key, value, err := db.selectValue(keyLocation)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get data from key location: %w", err)
 			}
@@ -148,16 +148,16 @@ func (DB *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) {
 }
 
 // Select all data less than a spefic boundary keys
-func (DB *DB) getLessThan(boundaryKey string, equalTo bool) (*[]data, error) { // I need to the boundary key check
+func (db *DB) getLessThan(boundaryKey string, equalTo bool) (*[]data, error) { // I need to the boundary key check
 	var selectedData []data
 	// Get left most node
-	n := DB.T.root
+	n := db.T.root
 	for !n.leaf {
 		n = n.children[0]
 	}
 	for n != nil {
 		for _, keyLocation := range n.keyLocations {
-			key, value, err := DB.selectValue(keyLocation)
+			key, value, err := db.selectValue(keyLocation)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get data from key location: %w", err)
 			}

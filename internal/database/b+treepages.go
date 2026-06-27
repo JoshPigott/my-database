@@ -133,7 +133,7 @@ func (pages *Pages) writeNodeToPage(n *node) {
 }
 
 // Creates a whole leaf node to disk
-func (Pages *Pages) writeLeafNode(n *node) {
+func (pages *Pages) writeLeafNode(n *node) {
 	buf := make([]byte, pageSize)
 
 	offset := pageMetadataSize
@@ -154,11 +154,11 @@ func (Pages *Pages) writeLeafNode(n *node) {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	Pages.WriteBytes(buf, pageStart, n.pageID)
+	pages.WriteBytes(buf, pageStart, n.pageID)
 }
 
 // Creates a whole internal node to disk
-func (Pages *Pages) writeInternalNode(n *node) {
+func (pages *Pages) writeInternalNode(n *node) {
 	buf := make([]byte, pageSize)
 	offset := pageMetadataSize
 
@@ -178,7 +178,7 @@ func (Pages *Pages) writeInternalNode(n *node) {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	Pages.WriteBytes(buf, pageStart, n.pageID)
+	pages.WriteBytes(buf, pageStart, n.pageID)
 }
 
 func addLeafKey(buf *[]byte, pageID uint32, slotID uint16, offset int, key string) int {

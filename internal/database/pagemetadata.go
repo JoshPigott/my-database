@@ -26,9 +26,9 @@ type pageMetadata struct {
 }
 
 // Rewrite page metadata
-func (Pages *Pages) updatePageMetadata(pageMetadata pageMetadata) error {
+func (pages *Pages) updatePageMetadata(pageMetadata pageMetadata) error {
 	buf := createMetadataBuffer(pageMetadata)
-	err := Pages.WriteBytes(buf, 0, pageMetadata.pageID)
+	err := pages.WriteBytes(buf, 0, pageMetadata.pageID)
 	if err != nil {
 		return fmt.Errorf("failed to update page metadata: %w", err)
 	}
