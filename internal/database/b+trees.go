@@ -43,12 +43,12 @@ func (pages *Pages) newNode(isLeaf bool) (*node, error) {
 	var pageID uint32
 	var err error
 	if isLeaf == true {
-		pageID, err = pages.Create(LeafPage)
+		pageID, err = pages.create(LeafPage)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new leaf node: %w", err)
 		}
 	} else {
-		pageID, err = pages.Create(LeafPage)
+		pageID, err = pages.create(LeafPage)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new leaf node: %w", err)
 		}
@@ -118,9 +118,9 @@ func (t *BTree) findNode(key string) (*node, bool, error) {
 Recursively calls itself to create a call stack,
 adds key at leaf, and works back up splitting if needed
 */
-func (pages *Pages) insert(n *node, key string, KeyLocation *KeyLocation) (*string, *node, *node) {
+func (pages *Pages) insert(n *node, key string, keyLocation *KeyLocation) (*string, *node, *node) {
 	if n.leaf {
-		splitResult, left, right := n.addKey(key, nil, nil, KeyLocation)
+		splitResult, left, right := n.addKey(key, nil, nil, keyLocation)
 		if splitResult == nil {
 			pages.writeNodeToPage(n)
 		}
@@ -128,7 +128,7 @@ func (pages *Pages) insert(n *node, key string, KeyLocation *KeyLocation) (*stri
 	}
 	// Internal node
 	child, _, _ := n.findChild(key)
-	splitResult, left, right := pages.insert(child, key, KeyLocation)
+	splitResult, left, right := pages.insert(child, key, keyLocation)
 
 	if splitResult != nil {
 		splitResult, left, right = n.addKey(*splitResult, left, right, nil)
@@ -141,7 +141,7 @@ func (pages *Pages) insert(n *node, key string, KeyLocation *KeyLocation) (*stri
 	return splitResult, left, right
 }
 
-func (n *node) addKey(key string, left *node, right *node, KeyLocation *KeyLocation) (*string, *node, *node) {
+func (n *node) addKey(key string, left *node, right *node, keyLocation *KeyLocation) (*string, *node, *node) {
 	var splitResult *string
 	// Checks if key in node already
 	if n.leaf && slices.Contains(n.keys, key) {
@@ -161,7 +161,7 @@ func (n *node) addKey(key string, left *node, right *node, KeyLocation *KeyLocat
 	if n.leaf {
 		n.keyLocations = append(n.keyLocations, nil)
 		copy(n.keyLocations[i+1:], n.keyLocations[i:])
-		n.keyLocations[i] = KeyLocation
+		n.keyLocations[i] = keyLocation
 	}
 
 	n.addChildern(left, right)

@@ -54,13 +54,12 @@ Do a good readme
 
 
 Do in the refactor
-I see no reason for Pages to not be Pages but IDK lol like the catpitals
 At some point I will need to catch my errors
 I also don't think I am using that map
 I need to remove unextported capital reorder the funcations
-IDK about DB verus db
 Like somtime non leaf nodes have NextID which should not the cases
+leftRedistribution and rightRedistribution are not dry enought
+That I not uses data in my records
 
-I think I should look into the catpitals lets start with db 
-Like revicer and funcation varible lower cases
-Like DB, KeyLocation, Pages maybe T
+I need to remove unextported capital reorder the funcations
+Then should commit

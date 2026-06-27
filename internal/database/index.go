@@ -64,3 +64,16 @@ func newDatabase(file *os.File) (*DB, error) {
 	}
 	return db, nil
 }
+
+// Opens up database file a makes sure there is a metedata page
+func openDefault(filename string) (*DB, error) {
+	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open page: %w", err)
+	}
+	db, err := newDatabase(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+	return db, nil
+}

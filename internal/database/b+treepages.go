@@ -6,26 +6,6 @@ import (
 	"fmt"
 )
 
-// Turns node page into free page
-func (pages *Pages) deleteNodePage(n *node) error {
-	buf := make([]byte, pageSize)
-
-	metadata, err := pages.ReadMetadata()
-	if err != nil {
-		return fmt.Errorf("failed to get metadata: %w", err)
-	}
-	binary.BigEndian.PutUint32(buf[pageStart:pageIDSize], metadata.nextFreePage)
-	metadata.nextFreePage = n.pageID
-
-	if err := pages.updateMetadata(metadata); err != nil {
-		return fmt.Errorf("failed to update metadata: %w", err)
-	}
-	if err := pages.WriteBytes(buf, pageStart, n.pageID); err != nil {
-		return fmt.Errorf("failed to delete nodes page: %w", err)
-	}
-	return nil
-}
-
 func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	var n *node
 	offset := 0
@@ -48,6 +28,35 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	n.pageID = pageID
 	pages.pageIDToNode[pageID] = n
 	return n, nil
+}
+
+func (pages *Pages) writeNodeToPage(n *node) {
+	delete(pages.pageIDToNode, n.pageID)
+	if n.leaf == true {
+		pages.writeLeafNode(n)
+	} else {
+		pages.writeInternalNode(n)
+	}
+}
+
+// Turns node page into free page
+func (pages *Pages) deleteNodePage(n *node) error {
+	buf := make([]byte, pageSize)
+
+	metadata, err := pages.readMetadata()
+	if err != nil {
+		return fmt.Errorf("failed to get metadata: %w", err)
+	}
+	binary.BigEndian.PutUint32(buf[pageStart:pageIDSize], metadata.nextFreePage)
+	metadata.nextFreePage = n.pageID
+
+	if err := pages.updateMetadata(metadata); err != nil {
+		return fmt.Errorf("failed to update metadata: %w", err)
+	}
+	if err := pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+		return fmt.Errorf("failed to delete nodes page: %w", err)
+	}
+	return nil
 }
 
 // Loops over number of keys format getting the keys and children
@@ -123,15 +132,6 @@ func (pages *Pages) formatChild(n *node, pageBytes []byte, offest int) {
 	n.children = append(n.children, pages.pageIDToNode[childPageID])
 }
 
-func (pages *Pages) writeNodeToPage(n *node) {
-	delete(pages.pageIDToNode, n.pageID)
-	if n.leaf == true {
-		pages.writeLeafNode(n)
-	} else {
-		pages.writeInternalNode(n)
-	}
-}
-
 // Creates a whole leaf node to disk
 func (pages *Pages) writeLeafNode(n *node) {
 	buf := make([]byte, pageSize)
@@ -154,7 +154,7 @@ func (pages *Pages) writeLeafNode(n *node) {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	pages.WriteBytes(buf, pageStart, n.pageID)
+	pages.writeBytes(buf, pageStart, n.pageID)
 }
 
 // Creates a whole internal node to disk
@@ -178,7 +178,7 @@ func (pages *Pages) writeInternalNode(n *node) {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	pages.WriteBytes(buf, pageStart, n.pageID)
+	pages.writeBytes(buf, pageStart, n.pageID)
 }
 
 func addLeafKey(buf *[]byte, pageID uint32, slotID uint16, offset int, key string) int {
@@ -229,27 +229,6 @@ func (n *node) isOverflow() bool {
 	return currSize > pageSize
 }
 
-func (n *node) getDataSize() int {
-	currSize := pageMetadataSize
-	if n.leaf {
-		currSize += pageIDSize
-		for _, key := range n.keys {
-			currSize += keyLenStorageSize
-			currSize += len(key)
-			currSize += slotIDSize
-			currSize += pageIDSize
-		}
-	} else {
-		for _, key := range n.keys {
-			currSize += keyLenStorageSize
-			currSize += len(key)
-			currSize += pageIDSize
-		}
-		currSize += pageIDSize
-	}
-	return currSize
-}
-
 // Check if child + left exceeds page size
 func (n *node) needsLeftRedistribution(i int) bool {
 	childSize := n.children[i].getDataSize()
@@ -272,4 +251,25 @@ func (n *node) needsRightRedistribution(i int) bool {
 		totalSize += keyLenStorageSize + maxKeySize + pageIDSize
 	}
 	return totalSize > pageSize
+}
+
+func (n *node) getDataSize() int {
+	currSize := pageMetadataSize
+	if n.leaf {
+		currSize += pageIDSize
+		for _, key := range n.keys {
+			currSize += keyLenStorageSize
+			currSize += len(key)
+			currSize += slotIDSize
+			currSize += pageIDSize
+		}
+	} else {
+		for _, key := range n.keys {
+			currSize += keyLenStorageSize
+			currSize += len(key)
+			currSize += pageIDSize
+		}
+		currSize += pageIDSize
+	}
+	return currSize
 }

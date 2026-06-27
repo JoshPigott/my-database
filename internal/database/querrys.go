@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
 )
 
 type MathConditions string
@@ -33,19 +32,6 @@ func Open() (*DB, error) {
 	return openDefault(filename)
 }
 
-// Opens up database file a makes sure there is a metedata page
-func openDefault(filename string) (*DB, error) {
-	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open page: %w", err)
-	}
-	db, err := newDatabase(file)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
-	}
-	return db, nil
-}
-
 func (db *DB) Close() error {
 	if err := db.Pages.File.Close(); err != nil {
 		return fmt.Errorf("failed to close file: %w", err)
@@ -67,7 +53,7 @@ func (db *DB) AddToPage(key string, value string) error {
 	}
 
 	// Get database metadata
-	metadata, err := db.Pages.ReadMetadata()
+	metadata, err := db.Pages.readMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to read : %w", err)
 	}
@@ -101,10 +87,10 @@ func (db *DB) AddToPage(key string, value string) error {
 	dataBuf := getDataBuffer(key, value, dataSize)
 
 	// Update file
-	if err := db.Pages.WriteBytes(slotBuf, slotOffset, pageID); err != nil {
+	if err := db.Pages.writeBytes(slotBuf, slotOffset, pageID); err != nil {
 		return fmt.Errorf("failed to write slot: %w", err)
 	}
-	if err := db.Pages.WriteBytes(dataBuf, newDataOffset, pageID); err != nil {
+	if err := db.Pages.writeBytes(dataBuf, newDataOffset, pageID); err != nil {
 		return fmt.Errorf("failed to write new data: %w", err)
 	}
 
@@ -153,7 +139,7 @@ func (db *DB) Delete(key string) error {
 
 			slotOffset := pageMetadataSize + (dataRecord.slotIndex * slotSize)
 			slotFlagOffset := slotOffset + slotOffsetSize + slotLengthSize
-			db.Pages.WriteBytes(slotFlagBytes, slotFlagOffset, uint32(pageID))
+			db.Pages.writeBytes(slotFlagBytes, slotFlagOffset, uint32(pageID))
 		}
 	}
 	db.T.Delete(key)

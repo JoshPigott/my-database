@@ -68,7 +68,7 @@ func (pages *Pages) write(bytes []byte, pageID uint32, pageType PageType) error 
 }
 
 // Open up database writes bytes and syncs bytes
-func (pages *Pages) WriteBytes(bytes []byte, offset int, pageID uint32) error {
+func (pages *Pages) writeBytes(bytes []byte, offset int, pageID uint32) error {
 	pageOffSet := getPageOffset(pageID)
 	totalOffset := int64(offset) + pageOffSet
 
