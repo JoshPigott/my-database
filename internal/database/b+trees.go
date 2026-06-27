@@ -82,32 +82,35 @@ func (DB *DB) Insert(key string, pageID uint32, slotID uint16) {
 }
 
 // Find the location of the key return KeyLocation and if found
-func (DB *DB) FindKeyLocation(key string) (uint32, uint16, bool, error) {
-	n, inTree, err := DB.T.FindNode(key)
+func (DB *DB) FindKeyLocation(key string) (*KeyLocation, bool, error) {
+	n, inTree, err := DB.T.findNode(key)
 	if err != nil {
-		return 0, 0, false, fmt.Errorf("failed to find node: %w", err)
+		return nil, false, fmt.Errorf("failed to find node: %w", err)
 	}
 	if !inTree {
-		return 0, 0, false, nil
+		return nil, false, nil
 	}
 	i := slices.Index(n.keys, key)
-	keyLocation := *n.keyLocations[i]
-	return keyLocation.PageID, keyLocation.SlotID, true, nil
+	keyLocation := n.keyLocations[i]
+	return keyLocation, true, nil
 }
 
 // Returns if key in tree and key
-func (t *BTree) FindNode(key string) (*node, bool, error) {
+func (t *BTree) findNode(key string) (*node, bool, error) {
 	var err error
 	n := t.root
 	for {
 		if n.leaf {
 			if slices.Contains(n.keys, key) {
-				return n, true, err
+				return n, true, nil
 			} else {
-				return nil, false, err
+				return n, false, nil
 			}
 		}
 		n, _, err = n.findChild(key)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to find child: %w", err)
+		}
 	}
 }
 

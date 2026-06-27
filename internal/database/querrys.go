@@ -7,6 +7,27 @@ import (
 	"os"
 )
 
+type MathConditions string
+
+const (
+	GreaterThan          = ">"
+	LessThan             = "<"
+	GreaterThanOrEqualTo = ">="
+	LessThanOrEqualTo    = "<="
+)
+
+type data struct {
+	key   string
+	value string
+}
+
+func newData(key string, value string) data {
+	return data{
+		key:   key,
+		value: value,
+	}
+}
+
 func Open() (*DB, error) {
 	filename := "data/bubbly.db"
 	return openDefault(filename)
@@ -169,22 +190,47 @@ func (DB *DB) SelectAll() (map[string]string, error) {
 
 // Uses b+tree to select the value returns; value, if found, error
 func (DB *DB) Select(key string) (string, bool, error) {
-	pageID, slotID, inTree, err := DB.FindKeyLocation(key)
+	keyLocation, inTree, err := DB.FindKeyLocation(key)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to select value: %w", err)
 	}
 	if inTree == false {
 		return "", false, nil
 	}
-	slotBytes, err := DB.Pages.readSlot(pageID, slotID)
+	_, value, err := DB.selectValue(keyLocation)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to select value: %w", err)
+		return "", false, fmt.Errorf("failed to read value with key location: %w", err)
 	}
-	formatedSlot := formatSlot(slotBytes)
-	dataBytes, err := DB.Pages.readData(formatedSlot, pageID)
-	if err != nil {
-		return "", false, fmt.Errorf("failed to select value: %w", err)
-	}
-	_, value := readEntry(dataBytes)
 	return value, true, nil
+}
+
+// Used like where x > 5.
+func (DB *DB) SelectWhere(condition MathConditions, boundaryKey string) (*[]data, error) {
+	var selectedData *[]data
+	var err error
+	switch condition {
+	case GreaterThan:
+		selectedData, err = DB.getMoreThan(boundaryKey, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to select data: %w", err)
+		}
+	case GreaterThanOrEqualTo:
+		selectedData, err = DB.getMoreThan(boundaryKey, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to select data: %w", err)
+		}
+	case LessThan:
+		selectedData, err = DB.getLessThan(boundaryKey, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to select data: %w", err)
+		}
+	case LessThanOrEqualTo:
+		selectedData, err = DB.getLessThan(boundaryKey, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to select data: %w", err)
+		}
+	default:
+		return nil, errors.New("invaild condition")
+	}
+	return selectedData, nil
 }
