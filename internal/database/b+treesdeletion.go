@@ -56,10 +56,14 @@ func (n *node) delete(key string) error { // I think the underflow part
 	if err := nChild.delete(key); err != nil {
 		return err
 	}
-	if !nChild.isUnderflow() {
-		return nil
+	if nChild.isUnderflow() {
+		return n.fixUnderflow(i)
 	}
+	return nil
+}
 
+// Updates child keys to ensure the child node has sufficient keys
+func (n *node) fixUnderflow(i int) error {
 	isLeft := i != 0
 	isRight := i != len(n.children)-1
 

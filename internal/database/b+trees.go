@@ -245,38 +245,40 @@ func (n *node) addChildern(left *node, right *node) {
 }
 
 // splits node into two new nodes
-func (n *node) split() (*string, *node, *node, error) { // Maybe
+func (n *node) split() (*string, *node, *node, error) {
 	right, err := n.pages.newNode(n.leaf)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to split node: %w", err)
 	}
 
-	middlekeyIndex := len(n.keys) / 2
-	middlekey := &n.keys[middlekeyIndex]
+	middleIndex := len(n.keys) / 2
+	middlekey := &n.keys[middleIndex]
+
+	rightStart := middleIndex
+	if !n.leaf {
+		rightStart = middleIndex + 1
+	}
 
 	// Updates keys
 	if n.leaf == false {
-		rightStart := middlekeyIndex + 1
 		right.keys = make([]string, len(n.keys[rightStart:]))
 		copy(right.keys, n.keys[rightStart:])
 	} else {
-		rightStart := middlekeyIndex
 		right.keys = make([]string, len(n.keys[rightStart:]))
 		copy(right.keys, n.keys[rightStart:])
 	}
-	n.keys = n.keys[:middlekeyIndex]
+	n.keys = n.keys[:middleIndex]
 
 	// Updates KeyLocation
 	if n.leaf {
-		rightStart := middlekeyIndex
 		right.keyLocations = make([]*KeyLocation, len(n.keyLocations[rightStart:]))
 		copy(right.keyLocations, n.keyLocations[rightStart:])
-		n.keyLocations = n.keyLocations[:middlekeyIndex]
+		n.keyLocations = n.keyLocations[:middleIndex]
 	}
 
 	// Updates children (splits into different nodes)
-	if len(n.children) > middlekeyIndex {
-		rightChildStart := middlekeyIndex + 1
+	if len(n.children) > middleIndex {
+		rightChildStart := middleIndex + 1
 
 		right.children = append(right.children, n.children[rightChildStart:]...)
 		n.children = n.children[:rightChildStart]
