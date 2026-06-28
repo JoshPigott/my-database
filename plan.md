@@ -54,9 +54,8 @@ Do a good readme
 
 
 Do in the refactor
-I need to remove unextported capital reorder the funcations
 Like somtime non leaf nodes have NextID which should not the cases
-leftRedistribution and rightRedistribution are not dry enought
 That I not uses data in my records but I do for select
+Quite a few of the funcation are just too long
 
-At some point I will need to catch my errors
+leftRedistribution and rightRedistribution are not dry enought

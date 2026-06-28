@@ -72,11 +72,11 @@ func (n *node) delete(key string) error {
 	}
 
 	if isLeft && n.needsLeftRedistribution(i) {
-		if err := n.leftRedistribution(i); err != nil {
+		if err := n.redistribution(i, true); err != nil {
 			return fmt.Errorf("failed delete key: %w", err)
 		}
 	} else if isRight && n.needsRightRedistribution(i) {
-		if err := n.rightRedistribution(i); err != nil {
+		if err := n.redistribution(i, false); err != nil {
 			return fmt.Errorf("failed to delete key: %w", err)
 		}
 	} else if isLeft {
@@ -91,81 +91,24 @@ func (n *node) delete(key string) error {
 	return nil
 }
 
-// Rewrites child and left child to have the a more split of data
-func (n *node) leftRedistribution(i int) error {
-	l := n.children[i-1]
-	r := n.children[i]
+// Rewrites child and right child to have the a more even split of data
+func (n *node) redistribution(i int, isLeftRedistribution bool) error {
+	var l *node
+	var r *node
+	if isLeftRedistribution {
+		l = n.children[i-1]
+		r = n.children[i]
+	} else {
+		l = n.children[i]
+		r = n.children[i+1]
+	}
 
 	keys := make([]string, 0, len(l.keys)+len(r.keys))
 	keys = append(keys, l.keys...)
-	if !l.leaf {
+	if !l.leaf && isLeftRedistribution {
 		keys = append(keys, n.keys[i-1])
 	}
-	keys = append(keys, r.keys...)
-
-	j := redistributionIndex(keys)
-
-	// Update keys
-	if l.leaf {
-		l.keys = keys[:j]
-		r.keys = keys[j:]
-		n.keys[i-1] = keys[j]
-	} else {
-		l.keys = keys[:j]
-		r.keys = keys[j+1:]
-		n.keys[i-1] = keys[j]
-	}
-
-	if l.leaf {
-		// Combined key locations
-		keyLocations := make([]*KeyLocation, 0, len(l.keyLocations)+len(r.keyLocations))
-		keyLocations = append(keyLocations, l.keyLocations...)
-		keyLocations = append(keyLocations, r.keyLocations...)
-
-		// Update key locations
-		l.keyLocations = keyLocations[:j]
-		r.keyLocations = keyLocations[j:]
-	} else {
-		// Combined children
-		children := make([]*node, 0, len(l.children)+len(r.children))
-		children = append(children, l.children...)
-		children = append(children, r.children...)
-
-		// Move children
-		l.children = children[:j+1]
-		r.children = children[j+1:]
-
-		// Combined children
-		childPageIDs := make([]uint32, 0, len(l.childPageIDs)+len(r.childPageIDs))
-		childPageIDs = append(childPageIDs, l.childPageIDs...)
-		childPageIDs = append(childPageIDs, r.childPageIDs...)
-
-		// Move children pageID
-		l.childPageIDs = childPageIDs[:j+1]
-		r.childPageIDs = childPageIDs[j+1:]
-	}
-
-	// Writes nodes to disk
-	if err := n.pages.writeNodeToPage(n); err != nil {
-		return fmt.Errorf("failed to do left redistribution: %w", err)
-	}
-	if err := r.pages.writeNodeToPage(r); err != nil {
-		return fmt.Errorf("failed to do left redistribution: %w", err)
-	}
-	if err := l.pages.writeNodeToPage(l); err != nil {
-		return fmt.Errorf("failed to do left redistribution: %w", err)
-	}
-	return nil
-}
-
-// Rewrites child and right child to have the a more split of data
-func (n *node) rightRedistribution(i int) error {
-	l := n.children[i]
-	r := n.children[i+1]
-
-	keys := make([]string, 0, len(l.keys)+len(r.keys))
-	keys = append(keys, l.keys...)
-	if !l.leaf {
+	if !l.leaf && !isLeftRedistribution {
 		keys = append(keys, n.keys[i])
 	}
 	keys = append(keys, r.keys...)
@@ -176,10 +119,13 @@ func (n *node) rightRedistribution(i int) error {
 	if l.leaf {
 		l.keys = keys[:j]
 		r.keys = keys[j:]
-		n.keys[i] = keys[j]
 	} else {
 		l.keys = keys[:j]
 		r.keys = keys[j+1:]
+	}
+	if isLeftRedistribution {
+		n.keys[i-1] = keys[j]
+	} else {
 		n.keys[i] = keys[j]
 	}
 
@@ -214,13 +160,13 @@ func (n *node) rightRedistribution(i int) error {
 
 	// Writes nodes to disk
 	if err := n.pages.writeNodeToPage(n); err != nil {
-		return fmt.Errorf("failed to do right redistribution: %w", err)
+		return fmt.Errorf("failed to do redistribution: %w", err)
 	}
 	if err := r.pages.writeNodeToPage(r); err != nil {
-		return fmt.Errorf("failed to do right redistribution: %w", err)
+		return fmt.Errorf("failed to do redistribution: %w", err)
 	}
 	if err := l.pages.writeNodeToPage(l); err != nil {
-		return fmt.Errorf("failed to do right redistribution: %w", err)
+		return fmt.Errorf("failed to do redistribution: %w", err)
 	}
 	return nil
 }
