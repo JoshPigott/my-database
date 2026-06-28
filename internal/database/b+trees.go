@@ -29,8 +29,10 @@ type KeyLocation struct {
 
 func (pages *Pages) NewBTree() (*BTree, uint32, error) {
 	rootNode, err := pages.newNode(true)
-	pages.rootPageLink(rootNode.pageID)
 	if err != nil {
+		return nil, rootNode.pageID, fmt.Errorf("failed to create new b+tree: %w", err)
+	}
+	if err := pages.rootPageLink(rootNode.pageID); err != nil {
 		return nil, rootNode.pageID, fmt.Errorf("failed to create new b+tree: %w", err)
 	}
 	t := &BTree{
@@ -80,10 +82,16 @@ func (db *DB) Insert(key string, pageID uint32, slotID uint16) error {
 		if err != nil {
 			return fmt.Errorf("failed to create new root node: %w", err)
 		}
-		newRoot.addKey(*splitResult, left, right, nil)
-		db.Pages.writeNodeToPage(newRoot)
+		if _, _, _, err := newRoot.addKey(*splitResult, left, right, nil); err != nil {
+			return fmt.Errorf("failed to add key to new root node: %w", err)
+		}
+		if err := db.Pages.writeNodeToPage(newRoot); err != nil {
+			return fmt.Errorf("failed to insert new key: %w", err)
+		}
 		db.T.root = newRoot
-		db.Pages.rootPageLink(newRoot.pageID)
+		if err := db.Pages.rootPageLink(newRoot.pageID); err != nil {
+			return fmt.Errorf("failed to insert new key: %w", err)
+		}
 	}
 	return nil
 }
@@ -132,7 +140,9 @@ func (pages *Pages) insert(n *node, key string, keyLocation *KeyLocation) (*stri
 
 		}
 		if splitResult == nil {
-			pages.writeNodeToPage(n)
+			if err := pages.writeNodeToPage(n); err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to insert new key: %w", err)
+			}
 		}
 		return splitResult, left, right, nil
 	}
@@ -145,11 +155,18 @@ func (pages *Pages) insert(n *node, key string, keyLocation *KeyLocation) (*stri
 
 	if splitResult != nil {
 		splitResult, left, right, err = n.addKey(*splitResult, left, right, nil)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		if splitResult == nil {
-			pages.writeNodeToPage(n)
+			if err := pages.writeNodeToPage(n); err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to insert new key: %w", err)
+			}
 		}
 	} else {
-		pages.writeNodeToPage(n)
+		if err := pages.writeNodeToPage(n); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to insert new key: %w", err)
+		}
 	}
 	return splitResult, left, right, nil
 }
@@ -274,8 +291,12 @@ func (n *node) split() (*string, *node, *node, error) {
 	n.NextID = right.pageID
 
 	// Write node to disk
-	n.pages.writeNodeToPage(n)
-	n.pages.writeNodeToPage(right)
+	if err := n.pages.writeNodeToPage(n); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to split node: %w", err)
+	}
+	if err := n.pages.writeNodeToPage(right); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to split node: %w", err)
+	}
 
 	return middlekey, n, right, nil
 }

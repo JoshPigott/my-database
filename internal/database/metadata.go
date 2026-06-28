@@ -62,7 +62,9 @@ func (pages *Pages) ensureMetadataPage(file *os.File) error {
 		return fmt.Errorf("failed to have vaild pages: %w", err)
 	}
 	if fileInfo.Size() == 0 {
-		pages.createMetadataPage()
+		if err := pages.createMetadataPage(); err != nil {
+			return fmt.Errorf("failed to ensure metadata page: %w", err)
+		}
 		return nil
 	}
 	return nil

@@ -133,7 +133,10 @@ func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) {
 		if n.Next != nil {
 			n = n.Next
 		} else {
-			n, _ = n.pages.ReadPageNode(n.NextID)
+			n, err = n.pages.ReadPageNode(n.NextID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read next page: %w", err)
+			}
 		}
 		for _, keyLocation := range n.keyLocations {
 			key, value, err := db.selectValue(keyLocation)
@@ -148,8 +151,9 @@ func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) {
 }
 
 // Select all data less than a spefic boundary keys
-func (db *DB) getLessThan(boundaryKey string, equalTo bool) (*[]data, error) { // I need to the boundary key check
+func (db *DB) getLessThan(boundaryKey string, equalTo bool) (*[]data, error) {
 	var selectedData []data
+	var err error
 	// Get left most node
 	n := db.T.root
 	for !n.leaf {
@@ -182,7 +186,10 @@ func (db *DB) getLessThan(boundaryKey string, equalTo bool) (*[]data, error) { /
 		case n.Next != nil:
 			n = n.Next
 		case n.NextID != 0:
-			n, _ = n.pages.ReadPageNode(n.NextID)
+			n, err = n.pages.ReadPageNode(n.NextID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read next nodes page: %w", err)
+			}
 		default:
 			n = nil
 		}

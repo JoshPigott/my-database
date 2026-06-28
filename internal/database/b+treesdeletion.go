@@ -37,12 +37,18 @@ func (n *node) delete(key string) error {
 			if keyVal == key {
 				n.keys = append(n.keys[:i], n.keys[i+1:]...)
 				n.keyLocations = append(n.keyLocations[:i], n.keyLocations[i+1:]...)
-				n.pages.writeNodeToPage(n)
+				if err := n.pages.writeNodeToPage(n); err != nil {
+					return fmt.Errorf("failed to delete key: %w", err)
+				}
 				return nil
 			}
 		}
 	}
-	nChild, i, _ := n.findChild(key)
+	nChild, i, err := n.findChild(key)
+	if err != nil {
+		return fmt.Errorf("failed to find child: %w", err)
+	}
+
 	if err := nChild.delete(key); err != nil {
 		return err
 	}
@@ -67,16 +73,20 @@ func (n *node) delete(key string) error {
 
 	if isLeft && n.needsLeftRedistribution(i) {
 		if err := n.leftRedistribution(i); err != nil {
-			return fmt.Errorf("failed to redistribution with left node: %w", err)
+			return fmt.Errorf("failed delete key: %w", err)
 		}
 	} else if isRight && n.needsRightRedistribution(i) {
 		if err := n.rightRedistribution(i); err != nil {
-			return fmt.Errorf("failed to redistribution with right node: %w", err)
+			return fmt.Errorf("failed to delete key: %w", err)
 		}
 	} else if isLeft {
-		n.mergeWithLeft(i)
+		if err := n.mergeWithLeft(i); err != nil {
+			return fmt.Errorf("failed to delete key: %w", err)
+		}
 	} else if isRight {
-		n.mergeWithRight(i)
+		if err := n.mergeWithRight(i); err != nil {
+			return fmt.Errorf("failed to delete key: %w", err)
+		}
 	}
 	return nil
 }
@@ -136,9 +146,15 @@ func (n *node) leftRedistribution(i int) error {
 	}
 
 	// Writes nodes to disk
-	n.pages.writeNodeToPage(n)
-	r.pages.writeNodeToPage(r)
-	l.pages.writeNodeToPage(l)
+	if err := n.pages.writeNodeToPage(n); err != nil {
+		return fmt.Errorf("failed to do left redistribution: %w", err)
+	}
+	if err := r.pages.writeNodeToPage(r); err != nil {
+		return fmt.Errorf("failed to do left redistribution: %w", err)
+	}
+	if err := l.pages.writeNodeToPage(l); err != nil {
+		return fmt.Errorf("failed to do left redistribution: %w", err)
+	}
 	return nil
 }
 
@@ -197,14 +213,20 @@ func (n *node) rightRedistribution(i int) error {
 	}
 
 	// Writes nodes to disk
-	n.pages.writeNodeToPage(n)
-	r.pages.writeNodeToPage(r)
-	l.pages.writeNodeToPage(l)
+	if err := n.pages.writeNodeToPage(n); err != nil {
+		return fmt.Errorf("failed to do right redistribution: %w", err)
+	}
+	if err := r.pages.writeNodeToPage(r); err != nil {
+		return fmt.Errorf("failed to do right redistribution: %w", err)
+	}
+	if err := l.pages.writeNodeToPage(l); err != nil {
+		return fmt.Errorf("failed to do right redistribution: %w", err)
+	}
 	return nil
 }
 
 // Merges child node with their left sibling node
-func (n *node) mergeWithLeft(i int) {
+func (n *node) mergeWithLeft(i int) error {
 	left := n.children[i-1]
 
 	// Delete separator key
@@ -241,13 +263,20 @@ func (n *node) mergeWithLeft(i int) {
 	n.childPageIDs = append(n.childPageIDs[:i], n.childPageIDs[i+1:]...)
 
 	// Write nodes to disk
-	n.pages.writeNodeToPage(n)
-	left.pages.writeNodeToPage(left)
-	merged.pages.deleteNodePage(merged)
+	if err := n.pages.writeNodeToPage(n); err != nil {
+		return fmt.Errorf("failed to mergre with left: %w", err)
+	}
+	if err := left.pages.writeNodeToPage(left); err != nil {
+		return fmt.Errorf("failed to mergre with left: %w", err)
+	}
+	if err := merged.pages.deleteNodePage(merged); err != nil {
+		return fmt.Errorf("failed to mergre with left: %w", err)
+	}
+	return nil
 }
 
 // Merges child node with their right sibling node
-func (n *node) mergeWithRight(i int) {
+func (n *node) mergeWithRight(i int) error {
 	right := n.children[i+1]
 
 	// Delete separator key
@@ -283,9 +312,16 @@ func (n *node) mergeWithRight(i int) {
 	n.childPageIDs = append(n.childPageIDs[:i+1], n.childPageIDs[i+2:]...)
 
 	// Write nodes to disk
-	n.pages.writeNodeToPage(n)
-	n.children[i].pages.writeNodeToPage(n.children[i])
-	right.pages.deleteNodePage(right)
+	if err := n.pages.writeNodeToPage(n); err != nil {
+		return fmt.Errorf("failed to merge with right: %w", err)
+	}
+	if err := n.children[i].pages.writeNodeToPage(n.children[i]); err != nil {
+		return fmt.Errorf("failed to merge with right: %w", err)
+	}
+	if err := right.pages.deleteNodePage(right); err != nil {
+		return fmt.Errorf("failed to merge with right: %w", err)
+	}
+	return nil
 }
 
 // Make sure right or left child is load into memory
@@ -305,7 +341,6 @@ func (n *node) loadChildren(j int) error {
 }
 
 // Find the key index to split page as equal as possible in half
-// Note I should have include the key len and key location size in the calculation
 func redistributionIndex(keys []string) int {
 	shortestDistance := math.MaxInt
 	totalLen := 0

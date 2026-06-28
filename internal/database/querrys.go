@@ -144,7 +144,9 @@ func (db *DB) Delete(key string) error {
 			db.Pages.writeBytes(slotFlagBytes, slotFlagOffset, uint32(pageID))
 		}
 	}
-	db.T.Delete(key)
+	if err := db.T.Delete(key); err != nil {
+		return fmt.Errorf("failed to to delete key in b+tree: %w", err)
+	}
 	return nil
 }
 

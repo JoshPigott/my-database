@@ -30,13 +30,18 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	return n, nil
 }
 
-func (pages *Pages) writeNodeToPage(n *node) {
+func (pages *Pages) writeNodeToPage(n *node) error {
 	delete(pages.pageIDToNode, n.pageID)
 	if n.leaf == true {
-		pages.writeLeafNode(n)
+		if err := pages.writeLeafNode(n); err != nil {
+			return fmt.Errorf("failed to write node to page")
+		}
 	} else {
-		pages.writeInternalNode(n)
+		if err := pages.writeInternalNode(n); err != nil {
+			return fmt.Errorf("failed to write node to page")
+		}
 	}
+	return nil
 }
 
 // Turns node page into free page
@@ -133,7 +138,7 @@ func (pages *Pages) formatChild(n *node, pageBytes []byte, offest int) {
 }
 
 // Creates a whole leaf node to disk
-func (pages *Pages) writeLeafNode(n *node) {
+func (pages *Pages) writeLeafNode(n *node) error {
 	buf := make([]byte, pageSize)
 
 	offset := pageMetadataSize
@@ -154,11 +159,14 @@ func (pages *Pages) writeLeafNode(n *node) {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	pages.writeBytes(buf, pageStart, n.pageID)
+	if err := pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+		return fmt.Errorf("failed to write leaf node: %w", err)
+	}
+	return nil
 }
 
 // Creates a whole internal node to disk
-func (pages *Pages) writeInternalNode(n *node) {
+func (pages *Pages) writeInternalNode(n *node) error {
 	buf := make([]byte, pageSize)
 	offset := pageMetadataSize
 
@@ -178,7 +186,10 @@ func (pages *Pages) writeInternalNode(n *node) {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	pages.writeBytes(buf, pageStart, n.pageID)
+	if err := pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+		return fmt.Errorf("failed to write internal node %w", err)
+	}
+	return nil
 }
 
 func addLeafKey(buf *[]byte, pageID uint32, slotID uint16, offset int, key string) int {
