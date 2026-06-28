@@ -6,25 +6,36 @@ import (
 	"strings"
 )
 
-type record struct {
-	slotIndex int
-	key       string
-	value     string
-	slot      slot
-}
-
 const (
 	keyLenStorageSize   int = 2
 	valueLenStorageSize int = 2
 )
 
+type record struct {
+	slotIndex int
+	data      data
+	slot      slot
+}
+
+type data struct {
+	key   string
+	value string
+}
+
+func newData(key string, value string) data {
+	return data{
+		key:   key,
+		value: value,
+	}
+}
+
 // Read a data entry and returns the key and value
-func readEntry(dataBytes []byte) (string, string) {
+func readEntry(dataBytes []byte) data {
 	keyLength := getKeyLength(dataBytes)
 	valueLength := getValueLength(dataBytes)
 	key, valueStart := getKey(dataBytes, keyLength)
 	value := getValue(dataBytes, valueStart, valueLength)
-	return key, value
+	return newData(key, value)
 }
 
 // Reads a page full of data
@@ -34,11 +45,9 @@ func readData(pageBytes []byte, slots []slot) []record {
 		dataStart := slot.offset
 		dataEnd := slot.length + dataStart
 		dataBytes := pageBytes[dataStart:dataEnd]
-		key, value := readEntry(dataBytes)
 		dataRecord := record{
 			slotIndex: i,
-			key:       key,
-			value:     value,
+			data:      readEntry(dataBytes),
 			slot:      slot,
 		}
 		dataRecords = append(dataRecords, dataRecord)
@@ -98,8 +107,8 @@ func (db *DB) selectValue(keyLocation *KeyLocation) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("failed to select value: %w", err)
 	}
-	key, value := readEntry(dataBytes)
-	return key, value, nil
+	data := readEntry(dataBytes)
+	return data.key, data.value, nil
 }
 
 // Used to slecet than or equal to a boundary key

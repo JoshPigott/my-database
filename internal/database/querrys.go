@@ -15,18 +15,6 @@ const (
 	LessThanOrEqualTo    = "<="
 )
 
-type data struct {
-	key   string
-	value string
-}
-
-func newData(key string, value string) data {
-	return data{
-		key:   key,
-		value: value,
-	}
-}
-
 func Open() (*DB, error) {
 	filename := "data/bubbly.db"
 	return openDefault(filename)
@@ -127,19 +115,19 @@ func (db *DB) Delete(key string) error {
 			continue
 		}
 
-		dataRecords, err := db.Pages.read(uint32(pageID))
+		records, err := db.Pages.read(uint32(pageID))
 		if err != nil {
 			return fmt.Errorf("failed to read page: %w", err)
 		}
-		for _, dataRecord := range dataRecords {
-			if dataRecord.key != key {
+		for _, record := range records {
+			if record.data.key != key {
 				continue
 			}
 			// Change flag to deleted
 			slotFlagBytes := make([]byte, slotFlagSize)
 			binary.BigEndian.PutUint16(slotFlagBytes, slotDeleted)
 
-			slotOffset := pageMetadataSize + (dataRecord.slotIndex * slotSize)
+			slotOffset := pageMetadataSize + (record.slotIndex * slotSize)
 			slotFlagOffset := slotOffset + slotOffsetSize + slotLengthSize
 			db.Pages.writeBytes(slotFlagBytes, slotFlagOffset, uint32(pageID))
 		}
@@ -152,30 +140,30 @@ func (db *DB) Delete(key string) error {
 
 // Return in a map of the key -> value. Remove duplicates and deleted records
 func (db *DB) SelectAll() (map[string]string, error) {
-	data := map[string]string{}
+	entries := map[string]string{}
 	numOfPagesToRead, err := db.Pages.getNumOfPagesToRead()
 	if err != nil {
-		return data, fmt.Errorf("failed to get page of pages to read")
+		return entries, fmt.Errorf("failed to get page of pages to read")
 	}
 	// Loops over each page
 	for pageID := 1; pageID <= numOfPagesToRead; pageID++ {
-		dataRecords, err := db.Pages.read(uint32(pageID))
+		records, err := db.Pages.read(uint32(pageID))
 		if errors.Is(err, ErrNotDataPage) {
 			continue
 		}
 		if err != nil {
-			return data, fmt.Errorf("failed to format data: %w", err)
+			return entries, fmt.Errorf("failed to format data: %w", err)
 		}
 
-		for _, dataRecord := range dataRecords {
+		for _, record := range records {
 			// Check  if value has been deleted
-			if dataRecord.slot.flag != slotNormal {
+			if record.slot.flag != slotNormal {
 				continue
 			}
-			data[dataRecord.key] = dataRecord.value
+			entries[record.data.key] = record.data.value
 		}
 	}
-	return data, nil
+	return entries, nil
 }
 
 // Uses b+tree to select the value returns; value, if found, error
