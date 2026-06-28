@@ -26,7 +26,7 @@ const (
 )
 
 // Creates all pages
-func (pages *Pages) create(pageType PageType) (uint32, error) {
+func (pages *Pages) create(pageType PageType) (uint32, error) { // Maybe
 	var pageID uint32
 	if pageType == MetadataPage {
 		return 0, errors.New("failed to create page: invalid funcation for creating metadata page")

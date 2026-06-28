@@ -112,7 +112,7 @@ func (db *DB) selectValue(keyLocation *KeyLocation) (string, string, error) {
 }
 
 // Used to slecet than or equal to a boundary key
-func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) {
+func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) { // Maybe
 	var selectedData []data
 	n, _, err := db.T.findNode(boundaryKey)
 	if err != nil {
@@ -160,7 +160,7 @@ func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) {
 }
 
 // Select all data less than a spefic boundary keys
-func (db *DB) getLessThan(boundaryKey string, equalTo bool) (*[]data, error) {
+func (db *DB) getLessThan(boundaryKey string, equalTo bool) (*[]data, error) { // Maybe
 	var selectedData []data
 	var err error
 	// Get left most node

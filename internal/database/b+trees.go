@@ -22,6 +22,7 @@ type node struct {
 	pageID       uint32
 	pages        *Pages
 }
+
 type KeyLocation struct {
 	PageID uint32
 	SlotID uint16
@@ -70,7 +71,7 @@ func newKeyLocation(pageID uint32, slotID uint16) *KeyLocation {
 // A wrapper for insert to handle spliting of the root
 func (db *DB) Insert(key string, pageID uint32, slotID uint16) error {
 	KeyLocation := newKeyLocation(pageID, slotID)
-	splitResult, left, right, err := db.Pages.insert(db.T.root, key, KeyLocation)
+	splitResult, left, right, err := db.T.root.insert(key, KeyLocation)
 	if err != nil {
 		return err
 	}
@@ -130,7 +131,7 @@ func (t *BTree) findNode(key string) (*node, bool, error) {
 Recursively calls itself to create a call stack,
 adds key at leaf, and works back up splitting if needed
 */
-func (pages *Pages) insert(n *node, key string, keyLocation *KeyLocation) (*string, *node, *node, error) {
+func (n *node) insert(key string, keyLocation *KeyLocation) (*string, *node, *node, error) {
 	if n.leaf {
 		splitResult, left, right, err := n.addKey(key, nil, nil, keyLocation)
 		if err != nil {
@@ -145,22 +146,26 @@ func (pages *Pages) insert(n *node, key string, keyLocation *KeyLocation) (*stri
 	}
 	// Internal node
 	child, _, _ := n.findChild(key)
-	splitResult, left, right, err := pages.insert(child, key, keyLocation)
+	splitResult, left, right, err := child.insert(key, keyLocation)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to insert key: %w", err)
 	}
+	return n.performSplit(splitResult, left, right)
+}
 
-	if splitResult != nil {
-		splitResult, left, right, err = n.addKey(*splitResult, left, right, nil)
-		if err != nil {
-			return nil, nil, nil, err
+// Perform node split into two nodes if need
+func (n *node) performSplit(splitResult *string, left *node, right *node) (*string, *node, *node, error) {
+	if splitResult == nil {
+		if err := n.writeNodeToPage(); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to insert new key: %w", err)
 		}
-		if splitResult == nil {
-			if err := n.writeNodeToPage(); err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to insert new key: %w", err)
-			}
-		}
-	} else {
+		return nil, nil, nil, nil
+	}
+	splitResult, left, right, err := n.addKey(*splitResult, left, right, nil)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if splitResult == nil {
 		if err := n.writeNodeToPage(); err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to insert new key: %w", err)
 		}
@@ -240,7 +245,7 @@ func (n *node) addChildern(left *node, right *node) {
 }
 
 // splits node into two new nodes
-func (n *node) split() (*string, *node, *node, error) {
+func (n *node) split() (*string, *node, *node, error) { // Maybe
 	right, err := n.pages.newNode(n.leaf)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to split node: %w", err)

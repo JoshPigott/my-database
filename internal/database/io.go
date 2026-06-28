@@ -14,7 +14,7 @@ func (pages *Pages) read(pageID uint32) ([]record, error) {
 }
 
 // Read page to get the data in a data page
-func (pages *Pages) readFull(pageID uint32) ([]byte, []slot, []record, error) {
+func (pages *Pages) readFull(pageID uint32) ([]byte, []slot, []record, error) { // Ugly
 	pageOffSet := getPageOffset(pageID)
 	pageBytes := make([]byte, pageSize)
 	if _, err := pages.File.Seek(pageOffSet, io.SeekStart); err != nil {

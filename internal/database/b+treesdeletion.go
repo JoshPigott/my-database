@@ -31,7 +31,7 @@ Build a call stack to locate the leaf node.
 Delete the key from the leaf node.
 Rebalance the tree if necessary.
 */
-func (n *node) delete(key string) error {
+func (n *node) delete(key string) error { // I think the underflow part
 	if n.leaf {
 		if !slices.Contains(n.keys, key) {
 			return nil
@@ -96,7 +96,7 @@ func (n *node) delete(key string) error {
 }
 
 // Rewrites child and right child to have the a more even split of data
-func (n *node) redistribution(i int, isLeftRedistribution bool) error {
+func (n *node) redistribution(i int, isLeftRedistribution bool) error { // Maybe
 	var l *node
 	var r *node
 	if isLeftRedistribution {
@@ -176,7 +176,7 @@ func (n *node) redistribution(i int, isLeftRedistribution bool) error {
 }
 
 // Merges child node with their left sibling node
-func (n *node) mergeWithLeft(i int) error {
+func (n *node) mergeWithLeft(i int) error { // How silmar to mergre with right like will need to look at that
 	left := n.children[i-1]
 
 	// Delete separator key
@@ -291,7 +291,7 @@ func (n *node) loadChildren(j int) error {
 }
 
 // Find the key index to split page as equal as possible in half
-func redistributionIndex(keys []string) int {
+func redistributionIndex(keys []string) int { // Maybe
 	shortestDistance := math.MaxInt
 	totalLen := 0
 	for _, key := range keys {

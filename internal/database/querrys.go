@@ -28,7 +28,7 @@ func (db *DB) Close() error {
 }
 
 // Adds to page if there is room to add the page
-func (db *DB) AddToPage(key string, value string) error {
+func (db *DB) AddToPage(key string, value string) error { // Prop
 	var pageID uint32
 
 	// Check input sizes
@@ -99,7 +99,7 @@ func (db *DB) AddToPage(key string, value string) error {
 }
 
 // Check all the data records and if it matches the key updates the flag
-func (db *DB) Delete(key string) error {
+func (db *DB) Delete(key string) error { // Maybe
 	numOfPagesToRead, err := db.Pages.getNumOfPagesToRead()
 	if err != nil {
 		return fmt.Errorf("failed to get page of pages to read")

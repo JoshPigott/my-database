@@ -58,5 +58,3 @@ Quite a few of the funcation are just too long
 I should also just look for ugly code
 
 Quite a few of the funcation are just too long
-
-TestSelectInsertDeleteReopen failed
