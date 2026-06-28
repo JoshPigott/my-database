@@ -284,11 +284,13 @@ func (n *node) split() (*string, *node, *node, error) {
 	}
 
 	// Updates next node
-	right.Next = n.Next
-	right.NextID = n.NextID
+	if n.leaf {
+		right.Next = n.Next
+		right.NextID = n.NextID
 
-	n.Next = right
-	n.NextID = right.pageID
+		n.Next = right
+		n.NextID = right.pageID
+	}
 
 	// Write node to disk
 	if err := n.pages.writeNodeToPage(n); err != nil {

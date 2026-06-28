@@ -54,8 +54,7 @@ Do a good readme
 
 
 Do in the refactor
-Like somtime non leaf nodes have NextID which should not the cases
 That I not uses data in my records but I do for select
 Quite a few of the funcation are just too long
 
-leftRedistribution and rightRedistribution are not dry enought
+That I not uses data in my records but I do for select
