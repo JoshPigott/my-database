@@ -54,7 +54,9 @@ Do a good readme
 
 
 Do in the refactor
-That I not uses data in my records but I do for select
+Quite a few of the funcation are just too long
+I should also just look for ugly code
+
 Quite a few of the funcation are just too long
 
-That I not uses data in my records but I do for select
+TestSelectInsertDeleteReopen failed

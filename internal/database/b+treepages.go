@@ -10,7 +10,7 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	var n *node
 	offset := 0
 	pageBytes, err := pages.ReadBytes(pageSize, offset, pageID)
-	// Free page node was deleted
+	// Free page; Node was deleted
 	if pageBytes[pageStart] == 0 {
 		return nil, errors.New("invalid page node")
 	}
@@ -30,14 +30,14 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	return n, nil
 }
 
-func (pages *Pages) writeNodeToPage(n *node) error {
-	delete(pages.pageIDToNode, n.pageID)
+func (n *node) writeNodeToPage() error {
+	delete(n.pages.pageIDToNode, n.pageID)
 	if n.leaf == true {
-		if err := pages.writeLeafNode(n); err != nil {
+		if err := n.writeLeafNode(); err != nil {
 			return fmt.Errorf("failed to write node to page")
 		}
 	} else {
-		if err := pages.writeInternalNode(n); err != nil {
+		if err := n.writeInternalNode(); err != nil {
 			return fmt.Errorf("failed to write node to page")
 		}
 	}
@@ -45,20 +45,21 @@ func (pages *Pages) writeNodeToPage(n *node) error {
 }
 
 // Turns node page into free page
-func (pages *Pages) deleteNodePage(n *node) error {
+func (n *node) deleteNodePage() error {
 	buf := make([]byte, pageSize)
 
-	metadata, err := pages.readMetadata()
+	metadata, err := n.pages.readMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to get metadata: %w", err)
 	}
-	binary.BigEndian.PutUint32(buf[pageStart:pageIDSize], metadata.nextFreePage)
+	buf[pageStart] = byte(FreePage)
+	binary.BigEndian.PutUint32(buf[pageTypeSize:pageTypeSize+pageIDSize], metadata.nextFreePage)
 	metadata.nextFreePage = n.pageID
 
-	if err := pages.updateMetadata(metadata); err != nil {
+	if err := n.pages.updateMetadata(metadata); err != nil {
 		return fmt.Errorf("failed to update metadata: %w", err)
 	}
-	if err := pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
 		return fmt.Errorf("failed to delete nodes page: %w", err)
 	}
 	return nil
@@ -138,7 +139,7 @@ func (pages *Pages) formatChild(n *node, pageBytes []byte, offest int) {
 }
 
 // Creates a whole leaf node to disk
-func (pages *Pages) writeLeafNode(n *node) error {
+func (n *node) writeLeafNode() error {
 	buf := make([]byte, pageSize)
 
 	offset := pageMetadataSize
@@ -159,14 +160,14 @@ func (pages *Pages) writeLeafNode(n *node) error {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	if err := pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
 		return fmt.Errorf("failed to write leaf node: %w", err)
 	}
 	return nil
 }
 
 // Creates a whole internal node to disk
-func (pages *Pages) writeInternalNode(n *node) error {
+func (n *node) writeInternalNode() error {
 	buf := make([]byte, pageSize)
 	offset := pageMetadataSize
 
@@ -186,7 +187,7 @@ func (pages *Pages) writeInternalNode(n *node) error {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	if err := pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
 		return fmt.Errorf("failed to write internal node %w", err)
 	}
 	return nil

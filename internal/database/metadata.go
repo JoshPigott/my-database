@@ -108,17 +108,18 @@ func (pages *Pages) getNumOfPagesToRead() (int, error) {
 }
 
 // Creates or updates the link between the metadata page and the b+tree root
-func (pages *Pages) rootPageLink(newRootID uint32) error {
+func (root *node) rootPageLink() error {
 	buf := make([]byte, rootpageIDSize)
-	binary.BigEndian.PutUint32(buf, newRootID)
-	if err := pages.writeBytes(buf, rootPageIDIndex, metadataPageID); err != nil {
+	binary.BigEndian.PutUint32(buf, root.pageID)
+	if err := root.pages.writeBytes(buf, pageMetadataSize, metadataPageID); err != nil {
 		return fmt.Errorf("failed to create link between metadata page and b+tree root page")
 	}
 	return nil
 }
 
 func (pages *Pages) getRootPage() (uint32, bool, error) {
-	bytes, err := pages.ReadBytes(rootpageIDSize, rootPageIDIndex, metadataPageID)
+	fullBytes, err := pages.ReadBytes(pageSize, pageStart, metadataPageID) // The offset wrong here I think
+	bytes := fullBytes[pageMetadataSize : pageMetadataSize+rootpageIDSize]
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to read root page id: %w", err)
 	}

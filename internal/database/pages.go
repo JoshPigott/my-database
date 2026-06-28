@@ -15,12 +15,14 @@ const (
 	maxValueSize = 512
 	pageIDSize   = 4
 	slotIDSize   = 2
+	pageTypeSize = 1
 
-	MetadataPage PageType = 0
-	DataPage     PageType = 1
+	FreePage     PageType = 0
+	MetadataPage PageType = 1
+	DataPage     PageType = 2
 	// B+tree pages
-	InternalPage PageType = 2
-	LeafPage     PageType = 3
+	InternalPage PageType = 3
+	LeafPage     PageType = 4
 )
 
 // Creates all pages
@@ -38,11 +40,11 @@ func (pages *Pages) create(pageType PageType) (uint32, error) {
 		pageID = metadata.totalNumPages
 	} else {
 		pageID = metadata.nextFreePage
-		pageIDBytes, err := pages.ReadBytes(pageIDSize, pageStart, metadata.nextFreePage)
+		// Update next page stack
+		pageIDBytes, err := pages.ReadBytes(pageIDSize, pageTypeIndex, metadata.nextFreePage)
 		if err != nil {
 			return 0, fmt.Errorf("failed to update next free page id")
 		}
-		// Update next page stack
 		nextPageID := binary.BigEndian.Uint32(pageIDBytes)
 		metadata.nextFreePage = nextPageID
 	}

@@ -22,7 +22,6 @@ type DB struct {
 }
 
 func newDatabase(file *os.File) (*DB, error) {
-	var t *BTree
 	pages := &Pages{
 		File:         file,
 		pageIDToNode: map[uint32]*node{},
@@ -34,35 +33,43 @@ func newDatabase(file *os.File) (*DB, error) {
 	if err := pages.createFirstDataPage(); err != nil {
 		return nil, fmt.Errorf("failed to create first data page")
 	}
-
-	rootID, isRoot, err := pages.getRootPage()
+	t, err := pages.getTree()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get b+tree: %w", err)
 	}
-	if isRoot == false {
-		t, rootID, err = pages.NewBTree()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		rootNode, err := pages.ReadPageNode(rootID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read node: %w", err)
-		}
-		t = &BTree{
-			root: rootNode,
-		}
-	}
-
-	if err := pages.rootPageLink(rootID); err != nil {
-		return nil, err
-	}
-
 	db := &DB{
 		Pages: pages,
 		T:     t,
 	}
 	return db, nil
+}
+
+// Get tree or makes tree
+func (pages *Pages) getTree() (*BTree, error) {
+	var t *BTree
+	rootID, isRoot, err := pages.getRootPage() // Bad here
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root page: %w", err)
+	}
+
+	if isRoot == false {
+		t, err = pages.NewBTree()
+		if err != nil {
+			return nil, err
+		}
+		if err := t.root.rootPageLink(); err != nil {
+			return nil, fmt.Errorf("failed to create new b+tree: %w", err)
+		}
+	} else {
+		rootNode, err := pages.ReadPageNode(rootID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read root node: %w", err)
+		}
+		t = &BTree{
+			root: rootNode,
+		}
+	}
+	return t, nil
 }
 
 // Opens up database file a makes sure there is a metedata page

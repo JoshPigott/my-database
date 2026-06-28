@@ -16,8 +16,12 @@ func (t *BTree) Delete(key string) error {
 	if len(t.root.keys) == 0 && len(t.root.children) > 0 {
 		oldRoot := t.root
 		t.root = t.root.children[0]
-		t.root.pages.rootPageLink(t.root.pageID)
-		oldRoot.pages.deleteNodePage(oldRoot)
+		if err := t.root.rootPageLink(); err != nil {
+			return fmt.Errorf("failed to delete key: %w", err)
+		}
+		if err := oldRoot.deleteNodePage(); err != nil {
+			return fmt.Errorf("failed to delete old root page: %w", err)
+		}
 	}
 	return nil
 }
@@ -37,7 +41,7 @@ func (n *node) delete(key string) error {
 			if keyVal == key {
 				n.keys = append(n.keys[:i], n.keys[i+1:]...)
 				n.keyLocations = append(n.keyLocations[:i], n.keyLocations[i+1:]...)
-				if err := n.pages.writeNodeToPage(n); err != nil {
+				if err := n.writeNodeToPage(); err != nil {
 					return fmt.Errorf("failed to delete key: %w", err)
 				}
 				return nil
@@ -159,13 +163,13 @@ func (n *node) redistribution(i int, isLeftRedistribution bool) error {
 	}
 
 	// Writes nodes to disk
-	if err := n.pages.writeNodeToPage(n); err != nil {
+	if err := n.writeNodeToPage(); err != nil {
 		return fmt.Errorf("failed to do redistribution: %w", err)
 	}
-	if err := r.pages.writeNodeToPage(r); err != nil {
+	if err := r.writeNodeToPage(); err != nil {
 		return fmt.Errorf("failed to do redistribution: %w", err)
 	}
-	if err := l.pages.writeNodeToPage(l); err != nil {
+	if err := l.writeNodeToPage(); err != nil {
 		return fmt.Errorf("failed to do redistribution: %w", err)
 	}
 	return nil
@@ -209,13 +213,13 @@ func (n *node) mergeWithLeft(i int) error {
 	n.childPageIDs = append(n.childPageIDs[:i], n.childPageIDs[i+1:]...)
 
 	// Write nodes to disk
-	if err := n.pages.writeNodeToPage(n); err != nil {
+	if err := n.writeNodeToPage(); err != nil {
 		return fmt.Errorf("failed to mergre with left: %w", err)
 	}
-	if err := left.pages.writeNodeToPage(left); err != nil {
+	if err := left.writeNodeToPage(); err != nil {
 		return fmt.Errorf("failed to mergre with left: %w", err)
 	}
-	if err := merged.pages.deleteNodePage(merged); err != nil {
+	if err := merged.deleteNodePage(); err != nil {
 		return fmt.Errorf("failed to mergre with left: %w", err)
 	}
 	return nil
@@ -258,13 +262,13 @@ func (n *node) mergeWithRight(i int) error {
 	n.childPageIDs = append(n.childPageIDs[:i+1], n.childPageIDs[i+2:]...)
 
 	// Write nodes to disk
-	if err := n.pages.writeNodeToPage(n); err != nil {
+	if err := n.writeNodeToPage(); err != nil {
 		return fmt.Errorf("failed to merge with right: %w", err)
 	}
-	if err := n.children[i].pages.writeNodeToPage(n.children[i]); err != nil {
+	if err := n.children[i].writeNodeToPage(); err != nil {
 		return fmt.Errorf("failed to merge with right: %w", err)
 	}
-	if err := right.pages.deleteNodePage(right); err != nil {
+	if err := right.deleteNodePage(); err != nil {
 		return fmt.Errorf("failed to merge with right: %w", err)
 	}
 	return nil
