@@ -16,8 +16,12 @@ func (t *BTree) Delete(key string) error {
 	if len(t.root.keys) == 0 && len(t.root.children) > 0 {
 		oldRoot := t.root
 		t.root = t.root.children[0]
-		t.root.pages.rootPageLink(t.root.pageID)
-		oldRoot.pages.deleteNodePage(oldRoot)
+		if err := t.root.rootPageLink(); err != nil {
+			return fmt.Errorf("failed to delete key: %w", err)
+		}
+		if err := oldRoot.deleteNodePage(); err != nil {
+			return fmt.Errorf("failed to delete old root page: %w", err)
+		}
 	}
 	return nil
 }
@@ -37,12 +41,18 @@ func (n *node) delete(key string) error {
 			if keyVal == key {
 				n.keys = append(n.keys[:i], n.keys[i+1:]...)
 				n.keyLocations = append(n.keyLocations[:i], n.keyLocations[i+1:]...)
-				n.pages.writeNodeToPage(n)
+				if err := n.writeNodeToPage(); err != nil {
+					return fmt.Errorf("failed to delete key: %w", err)
+				}
 				return nil
 			}
 		}
 	}
-	nChild, i, _ := n.findChild(key)
+	nChild, i, err := n.findChild(key)
+	if err != nil {
+		return fmt.Errorf("failed to find child: %w", err)
+	}
+
 	if err := nChild.delete(key); err != nil {
 		return err
 	}
@@ -66,90 +76,43 @@ func (n *node) delete(key string) error {
 	}
 
 	if isLeft && n.needsLeftRedistribution(i) {
-		if err := n.leftRedistribution(i); err != nil {
-			return fmt.Errorf("failed to redistribution with left node: %w", err)
+		if err := n.redistribution(i, true); err != nil {
+			return fmt.Errorf("failed delete key: %w", err)
 		}
 	} else if isRight && n.needsRightRedistribution(i) {
-		if err := n.rightRedistribution(i); err != nil {
-			return fmt.Errorf("failed to redistribution with right node: %w", err)
+		if err := n.redistribution(i, false); err != nil {
+			return fmt.Errorf("failed to delete key: %w", err)
 		}
 	} else if isLeft {
-		n.mergeWithLeft(i)
+		if err := n.mergeWithLeft(i); err != nil {
+			return fmt.Errorf("failed to delete key: %w", err)
+		}
 	} else if isRight {
-		n.mergeWithRight(i)
+		if err := n.mergeWithRight(i); err != nil {
+			return fmt.Errorf("failed to delete key: %w", err)
+		}
 	}
 	return nil
 }
 
-// Rewrites child and left child to have the a more split of data
-func (n *node) leftRedistribution(i int) error {
-	l := n.children[i-1]
-	r := n.children[i]
+// Rewrites child and right child to have the a more even split of data
+func (n *node) redistribution(i int, isLeftRedistribution bool) error {
+	var l *node
+	var r *node
+	if isLeftRedistribution {
+		l = n.children[i-1]
+		r = n.children[i]
+	} else {
+		l = n.children[i]
+		r = n.children[i+1]
+	}
 
 	keys := make([]string, 0, len(l.keys)+len(r.keys))
 	keys = append(keys, l.keys...)
-	if !l.leaf {
+	if !l.leaf && isLeftRedistribution {
 		keys = append(keys, n.keys[i-1])
 	}
-	keys = append(keys, r.keys...)
-
-	j := redistributionIndex(keys)
-
-	// Update keys
-	if l.leaf {
-		l.keys = keys[:j]
-		r.keys = keys[j:]
-		n.keys[i-1] = keys[j]
-	} else {
-		l.keys = keys[:j]
-		r.keys = keys[j+1:]
-		n.keys[i-1] = keys[j]
-	}
-
-	if l.leaf {
-		// Combined key locations
-		keyLocations := make([]*KeyLocation, 0, len(l.keyLocations)+len(r.keyLocations))
-		keyLocations = append(keyLocations, l.keyLocations...)
-		keyLocations = append(keyLocations, r.keyLocations...)
-
-		// Update key locations
-		l.keyLocations = keyLocations[:j]
-		r.keyLocations = keyLocations[j:]
-	} else {
-		// Combined children
-		children := make([]*node, 0, len(l.children)+len(r.children))
-		children = append(children, l.children...)
-		children = append(children, r.children...)
-
-		// Move children
-		l.children = children[:j+1]
-		r.children = children[j+1:]
-
-		// Combined children
-		childPageIDs := make([]uint32, 0, len(l.childPageIDs)+len(r.childPageIDs))
-		childPageIDs = append(childPageIDs, l.childPageIDs...)
-		childPageIDs = append(childPageIDs, r.childPageIDs...)
-
-		// Move children pageID
-		l.childPageIDs = childPageIDs[:j+1]
-		r.childPageIDs = childPageIDs[j+1:]
-	}
-
-	// Writes nodes to disk
-	n.pages.writeNodeToPage(n)
-	r.pages.writeNodeToPage(r)
-	l.pages.writeNodeToPage(l)
-	return nil
-}
-
-// Rewrites child and right child to have the a more split of data
-func (n *node) rightRedistribution(i int) error {
-	l := n.children[i]
-	r := n.children[i+1]
-
-	keys := make([]string, 0, len(l.keys)+len(r.keys))
-	keys = append(keys, l.keys...)
-	if !l.leaf {
+	if !l.leaf && !isLeftRedistribution {
 		keys = append(keys, n.keys[i])
 	}
 	keys = append(keys, r.keys...)
@@ -160,10 +123,13 @@ func (n *node) rightRedistribution(i int) error {
 	if l.leaf {
 		l.keys = keys[:j]
 		r.keys = keys[j:]
-		n.keys[i] = keys[j]
 	} else {
 		l.keys = keys[:j]
 		r.keys = keys[j+1:]
+	}
+	if isLeftRedistribution {
+		n.keys[i-1] = keys[j]
+	} else {
 		n.keys[i] = keys[j]
 	}
 
@@ -197,14 +163,20 @@ func (n *node) rightRedistribution(i int) error {
 	}
 
 	// Writes nodes to disk
-	n.pages.writeNodeToPage(n)
-	r.pages.writeNodeToPage(r)
-	l.pages.writeNodeToPage(l)
+	if err := n.writeNodeToPage(); err != nil {
+		return fmt.Errorf("failed to do redistribution: %w", err)
+	}
+	if err := r.writeNodeToPage(); err != nil {
+		return fmt.Errorf("failed to do redistribution: %w", err)
+	}
+	if err := l.writeNodeToPage(); err != nil {
+		return fmt.Errorf("failed to do redistribution: %w", err)
+	}
 	return nil
 }
 
 // Merges child node with their left sibling node
-func (n *node) mergeWithLeft(i int) {
+func (n *node) mergeWithLeft(i int) error {
 	left := n.children[i-1]
 
 	// Delete separator key
@@ -241,13 +213,20 @@ func (n *node) mergeWithLeft(i int) {
 	n.childPageIDs = append(n.childPageIDs[:i], n.childPageIDs[i+1:]...)
 
 	// Write nodes to disk
-	n.pages.writeNodeToPage(n)
-	left.pages.writeNodeToPage(left)
-	merged.pages.deleteNodePage(merged)
+	if err := n.writeNodeToPage(); err != nil {
+		return fmt.Errorf("failed to mergre with left: %w", err)
+	}
+	if err := left.writeNodeToPage(); err != nil {
+		return fmt.Errorf("failed to mergre with left: %w", err)
+	}
+	if err := merged.deleteNodePage(); err != nil {
+		return fmt.Errorf("failed to mergre with left: %w", err)
+	}
+	return nil
 }
 
 // Merges child node with their right sibling node
-func (n *node) mergeWithRight(i int) {
+func (n *node) mergeWithRight(i int) error {
 	right := n.children[i+1]
 
 	// Delete separator key
@@ -283,9 +262,16 @@ func (n *node) mergeWithRight(i int) {
 	n.childPageIDs = append(n.childPageIDs[:i+1], n.childPageIDs[i+2:]...)
 
 	// Write nodes to disk
-	n.pages.writeNodeToPage(n)
-	n.children[i].pages.writeNodeToPage(n.children[i])
-	right.pages.deleteNodePage(right)
+	if err := n.writeNodeToPage(); err != nil {
+		return fmt.Errorf("failed to merge with right: %w", err)
+	}
+	if err := n.children[i].writeNodeToPage(); err != nil {
+		return fmt.Errorf("failed to merge with right: %w", err)
+	}
+	if err := right.deleteNodePage(); err != nil {
+		return fmt.Errorf("failed to merge with right: %w", err)
+	}
+	return nil
 }
 
 // Make sure right or left child is load into memory
@@ -305,7 +291,6 @@ func (n *node) loadChildren(j int) error {
 }
 
 // Find the key index to split page as equal as possible in half
-// Note I should have include the key len and key location size in the calculation
 func redistributionIndex(keys []string) int {
 	shortestDistance := math.MaxInt
 	totalLen := 0

@@ -54,17 +54,9 @@ Do a good readme
 
 
 Do in the refactor
-I see no reason for Pages to not be Pages but IDK lol like the catpitals
-At some point I will need to catch my errors
-I also don't think I am using that map
-I need to remove unextported capital reorder the funcations
-IDK about DB verus db
-Like somtime non leaf nodes have NextID which should not the cases
+Quite a few of the funcation are just too long
+I should also just look for ugly code
 
-I should just reaftor of main like maybe into tests
+Quite a few of the funcation are just too long
 
-retribution can fail with code will wrong key size ect.
-I think I should the point where I merge I think I should only mergre if total is 
-I also think where should a bug on like a mergre where you change seperater keys if you know what I mean
-
-Okay with my test I want to make basic interst (I will propabably do will with just like one node then up to 3 layers), delete, select, select all, linked list. Then done
+TestSelectInsertDeleteReopen failed

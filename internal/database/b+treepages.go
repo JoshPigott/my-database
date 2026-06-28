@@ -6,31 +6,11 @@ import (
 	"fmt"
 )
 
-// Turns node page into free page
-func (pages *Pages) deleteNodePage(n *node) error {
-	buf := make([]byte, pageSize)
-
-	metadata, err := pages.ReadMetadata()
-	if err != nil {
-		return fmt.Errorf("failed to get metadata: %w", err)
-	}
-	binary.BigEndian.PutUint32(buf[pageStart:pageIDSize], metadata.nextFreePage)
-	metadata.nextFreePage = n.pageID
-
-	if err := pages.updateMetadata(metadata); err != nil {
-		return fmt.Errorf("failed to update metadata: %w", err)
-	}
-	if err := pages.WriteBytes(buf, pageStart, n.pageID); err != nil {
-		return fmt.Errorf("failed to delete nodes page: %w", err)
-	}
-	return nil
-}
-
 func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	var n *node
 	offset := 0
 	pageBytes, err := pages.ReadBytes(pageSize, offset, pageID)
-	// Free page node was deleted
+	// Free page; Node was deleted
 	if pageBytes[pageStart] == 0 {
 		return nil, errors.New("invalid page node")
 	}
@@ -48,6 +28,41 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	n.pageID = pageID
 	pages.pageIDToNode[pageID] = n
 	return n, nil
+}
+
+func (n *node) writeNodeToPage() error {
+	delete(n.pages.pageIDToNode, n.pageID)
+	if n.leaf == true {
+		if err := n.writeLeafNode(); err != nil {
+			return fmt.Errorf("failed to write node to page")
+		}
+	} else {
+		if err := n.writeInternalNode(); err != nil {
+			return fmt.Errorf("failed to write node to page")
+		}
+	}
+	return nil
+}
+
+// Turns node page into free page
+func (n *node) deleteNodePage() error {
+	buf := make([]byte, pageSize)
+
+	metadata, err := n.pages.readMetadata()
+	if err != nil {
+		return fmt.Errorf("failed to get metadata: %w", err)
+	}
+	buf[pageStart] = byte(FreePage)
+	binary.BigEndian.PutUint32(buf[pageTypeSize:pageTypeSize+pageIDSize], metadata.nextFreePage)
+	metadata.nextFreePage = n.pageID
+
+	if err := n.pages.updateMetadata(metadata); err != nil {
+		return fmt.Errorf("failed to update metadata: %w", err)
+	}
+	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+		return fmt.Errorf("failed to delete nodes page: %w", err)
+	}
+	return nil
 }
 
 // Loops over number of keys format getting the keys and children
@@ -123,17 +138,8 @@ func (pages *Pages) formatChild(n *node, pageBytes []byte, offest int) {
 	n.children = append(n.children, pages.pageIDToNode[childPageID])
 }
 
-func (pages *Pages) writeNodeToPage(n *node) {
-	delete(pages.pageIDToNode, n.pageID)
-	if n.leaf == true {
-		pages.writeLeafNode(n)
-	} else {
-		pages.writeInternalNode(n)
-	}
-}
-
 // Creates a whole leaf node to disk
-func (Pages *Pages) writeLeafNode(n *node) {
+func (n *node) writeLeafNode() error {
 	buf := make([]byte, pageSize)
 
 	offset := pageMetadataSize
@@ -154,11 +160,14 @@ func (Pages *Pages) writeLeafNode(n *node) {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	Pages.WriteBytes(buf, pageStart, n.pageID)
+	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+		return fmt.Errorf("failed to write leaf node: %w", err)
+	}
+	return nil
 }
 
 // Creates a whole internal node to disk
-func (Pages *Pages) writeInternalNode(n *node) {
+func (n *node) writeInternalNode() error {
 	buf := make([]byte, pageSize)
 	offset := pageMetadataSize
 
@@ -178,7 +187,10 @@ func (Pages *Pages) writeInternalNode(n *node) {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	Pages.WriteBytes(buf, pageStart, n.pageID)
+	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+		return fmt.Errorf("failed to write internal node %w", err)
+	}
+	return nil
 }
 
 func addLeafKey(buf *[]byte, pageID uint32, slotID uint16, offset int, key string) int {
@@ -229,27 +241,6 @@ func (n *node) isOverflow() bool {
 	return currSize > pageSize
 }
 
-func (n *node) getDataSize() int {
-	currSize := pageMetadataSize
-	if n.leaf {
-		currSize += pageIDSize
-		for _, key := range n.keys {
-			currSize += keyLenStorageSize
-			currSize += len(key)
-			currSize += slotIDSize
-			currSize += pageIDSize
-		}
-	} else {
-		for _, key := range n.keys {
-			currSize += keyLenStorageSize
-			currSize += len(key)
-			currSize += pageIDSize
-		}
-		currSize += pageIDSize
-	}
-	return currSize
-}
-
 // Check if child + left exceeds page size
 func (n *node) needsLeftRedistribution(i int) bool {
 	childSize := n.children[i].getDataSize()
@@ -272,4 +263,25 @@ func (n *node) needsRightRedistribution(i int) bool {
 		totalSize += keyLenStorageSize + maxKeySize + pageIDSize
 	}
 	return totalSize > pageSize
+}
+
+func (n *node) getDataSize() int {
+	currSize := pageMetadataSize
+	if n.leaf {
+		currSize += pageIDSize
+		for _, key := range n.keys {
+			currSize += keyLenStorageSize
+			currSize += len(key)
+			currSize += slotIDSize
+			currSize += pageIDSize
+		}
+	} else {
+		for _, key := range n.keys {
+			currSize += keyLenStorageSize
+			currSize += len(key)
+			currSize += pageIDSize
+		}
+		currSize += pageIDSize
+	}
+	return currSize
 }

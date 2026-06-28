@@ -38,13 +38,13 @@ func newDefaultMetadata() metadata {
 }
 
 // Reads metadata page and return the database metadata in a metadata struct
-func (Pages *Pages) ReadMetadata() (metadata, error) {
+func (pages *Pages) readMetadata() (metadata, error) {
 	metadataBytes := make([]byte, metadataSize)
 	dbMetadataStart := int64(pageMetadataSize)
-	if _, err := Pages.File.Seek(dbMetadataStart, io.SeekStart); err != nil {
+	if _, err := pages.File.Seek(dbMetadataStart, io.SeekStart); err != nil {
 		return metadata{}, fmt.Errorf("failed to read metadata page: %w", err)
 	}
-	if _, err := Pages.File.Read(metadataBytes); err != nil {
+	if _, err := pages.File.Read(metadataBytes); err != nil {
 		return metadata{}, fmt.Errorf("failed to read metadata page: %w", err)
 	}
 	metadata := formatMetadata(metadataBytes)
@@ -52,7 +52,7 @@ func (Pages *Pages) ReadMetadata() (metadata, error) {
 }
 
 // Creates a metadata page if none
-func (Pages *Pages) ensureMetadataPage(file *os.File) error {
+func (pages *Pages) ensureMetadataPage(file *os.File) error {
 	fileInfo, err := os.Stat(file.Name())
 	if err != nil {
 		return fmt.Errorf("failed to check file info: %w", err)
@@ -62,7 +62,9 @@ func (Pages *Pages) ensureMetadataPage(file *os.File) error {
 		return fmt.Errorf("failed to have vaild pages: %w", err)
 	}
 	if fileInfo.Size() == 0 {
-		Pages.createMetadataPage()
+		if err := pages.createMetadataPage(); err != nil {
+			return fmt.Errorf("failed to ensure metadata page: %w", err)
+		}
 		return nil
 	}
 	return nil
@@ -78,15 +80,15 @@ func formatMetadata(metadataBytes []byte) metadata {
 	}
 }
 
-func (Pages *Pages) updateMetadata(metadata metadata) error {
+func (pages *Pages) updateMetadata(metadata metadata) error {
 	buf := createDatabaseMetadataBuffer(metadata)
-	if err := Pages.WriteBytes(buf, pageMetadataSize, metadataPageID); err != nil {
+	if err := pages.writeBytes(buf, pageMetadataSize, metadataPageID); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Create the metadata buffer
+// create the metadata buffer
 func createDatabaseMetadataBuffer(metadata metadata) []byte {
 	buf := make([]byte, metadataSize)
 	binary.BigEndian.PutUint32(buf[rootPageIDIndex:totalNumPagesIndex], metadata.rootPageID)
@@ -97,8 +99,8 @@ func createDatabaseMetadataBuffer(metadata metadata) []byte {
 }
 
 // Return the number of pages that should be read
-func (Pages *Pages) getNumOfPagesToRead() (int, error) {
-	metadata, err := Pages.ReadMetadata()
+func (pages *Pages) getNumOfPagesToRead() (int, error) {
+	metadata, err := pages.readMetadata()
 	if err != nil {
 		return 0, fmt.Errorf("failed to read number of pages: %w", err)
 	}
@@ -106,17 +108,18 @@ func (Pages *Pages) getNumOfPagesToRead() (int, error) {
 }
 
 // Creates or updates the link between the metadata page and the b+tree root
-func (Pages *Pages) rootPageLink(newRootID uint32) error {
+func (root *node) rootPageLink() error {
 	buf := make([]byte, rootpageIDSize)
-	binary.BigEndian.PutUint32(buf, newRootID)
-	if err := Pages.WriteBytes(buf, rootPageIDIndex, metadataPageID); err != nil {
+	binary.BigEndian.PutUint32(buf, root.pageID)
+	if err := root.pages.writeBytes(buf, pageMetadataSize, metadataPageID); err != nil {
 		return fmt.Errorf("failed to create link between metadata page and b+tree root page")
 	}
 	return nil
 }
 
-func (Pages *Pages) getRootPage() (uint32, bool, error) {
-	bytes, err := Pages.ReadBytes(rootpageIDSize, rootPageIDIndex, metadataPageID)
+func (pages *Pages) getRootPage() (uint32, bool, error) {
+	fullBytes, err := pages.ReadBytes(pageSize, pageStart, metadataPageID) // The offset wrong here I think
+	bytes := fullBytes[pageMetadataSize : pageMetadataSize+rootpageIDSize]
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to read root page id: %w", err)
 	}
