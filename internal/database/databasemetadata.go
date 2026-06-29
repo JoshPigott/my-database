@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,42 +29,33 @@ type metadata struct {
 	lastDataPage  uint32
 }
 
-// Set set value of metadata page
-func newDefaultMetadata() metadata {
-	return metadata{
-		rootPageID:    undefinedRootPageID,
-		totalNumPages: onlyMetadataPage,
-		nextFreePage:  noFreePages,
-	}
-}
-
 // Reads metadata page and return the database metadata in a metadata struct
-func (pages *Pages) readMetadata() (metadata, error) {
+func (pages *Pages) readDBMetadata() (metadata, error) {
 	metadataBytes := make([]byte, metadataSize)
 	dbMetadataStart := int64(pageMetadataSize)
 	if _, err := pages.File.Seek(dbMetadataStart, io.SeekStart); err != nil {
-		return metadata{}, fmt.Errorf("failed to read metadata page: %w", err)
+		return metadata{}, fmt.Errorf("failed to seek metadata start: %w", err)
 	}
 	if _, err := pages.File.Read(metadataBytes); err != nil {
 		return metadata{}, fmt.Errorf("failed to read metadata page: %w", err)
 	}
-	metadata := formatMetadata(metadataBytes)
+	metadata := formatDBMetadata(metadataBytes)
 	return metadata, nil
 }
 
 // Creates a metadata page if none
-func (pages *Pages) ensureMetadataPage(file *os.File) error {
+func (pages *Pages) ensureDBMetadataPage(file *os.File) error {
 	fileInfo, err := os.Stat(file.Name())
 	if err != nil {
-		return fmt.Errorf("failed to check file info: %w", err)
+		return fmt.Errorf("failed to get file stats: %w", err)
 	}
 	// Checks if the file size is right (file not corrupted)
 	if fileInfo.Size()%pageSize != 0 {
-		return fmt.Errorf("failed to have vaild pages: %w", err)
+		return errors.New("corrupted file invalid size")
 	}
 	if fileInfo.Size() == 0 {
 		if err := pages.createMetadataPage(); err != nil {
-			return fmt.Errorf("failed to ensure metadata page: %w", err)
+			return fmt.Errorf("failed to create metadata page: %w", err)
 		}
 		return nil
 	}
@@ -71,7 +63,7 @@ func (pages *Pages) ensureMetadataPage(file *os.File) error {
 }
 
 // Formats bytes into a metadata struct
-func formatMetadata(metadataBytes []byte) metadata {
+func formatDBMetadata(metadataBytes []byte) metadata {
 	return metadata{
 		rootPageID:    binary.BigEndian.Uint32(metadataBytes[rootPageIDIndex:totalNumPagesIndex]),
 		totalNumPages: binary.BigEndian.Uint32(metadataBytes[totalNumPagesIndex:nextFreePageIndex]),
@@ -80,8 +72,8 @@ func formatMetadata(metadataBytes []byte) metadata {
 	}
 }
 
-func (pages *Pages) updateMetadata(metadata metadata) error {
-	buf := createDatabaseMetadataBuffer(metadata)
+func (pages *Pages) updateDBMetadata(metadata metadata) error {
+	buf := createDBMetadataBuffer(metadata)
 	if err := pages.writeBytes(buf, pageMetadataSize, metadataPageID); err != nil {
 		return err
 	}
@@ -89,7 +81,7 @@ func (pages *Pages) updateMetadata(metadata metadata) error {
 }
 
 // create the metadata buffer
-func createDatabaseMetadataBuffer(metadata metadata) []byte {
+func createDBMetadataBuffer(metadata metadata) []byte {
 	buf := make([]byte, metadataSize)
 	binary.BigEndian.PutUint32(buf[rootPageIDIndex:totalNumPagesIndex], metadata.rootPageID)
 	binary.BigEndian.PutUint32(buf[totalNumPagesIndex:nextFreePageIndex], metadata.totalNumPages)
@@ -100,9 +92,9 @@ func createDatabaseMetadataBuffer(metadata metadata) []byte {
 
 // Return the number of pages that should be read
 func (pages *Pages) getNumOfPagesToRead() (int, error) {
-	metadata, err := pages.readMetadata()
+	metadata, err := pages.readDBMetadata()
 	if err != nil {
-		return 0, fmt.Errorf("failed to read number of pages: %w", err)
+		return 0, fmt.Errorf("failed to read database metadata: %w", err)
 	}
 	return int(metadata.totalNumPages), nil
 }
@@ -112,7 +104,7 @@ func (root *node) rootPageLink() error {
 	buf := make([]byte, rootpageIDSize)
 	binary.BigEndian.PutUint32(buf, root.pageID)
 	if err := root.pages.writeBytes(buf, pageMetadataSize, metadataPageID); err != nil {
-		return fmt.Errorf("failed to create link between metadata page and b+tree root page")
+		return fmt.Errorf("failed to write b+root database metadata: %w", err)
 	}
 	return nil
 }

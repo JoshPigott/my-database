@@ -19,12 +19,12 @@ func (pages *Pages) readFull(pageID uint32) ([]byte, []slot, []record, error) {
 	pageOffSet := getPageOffset(pageID)
 	pageBytes := make([]byte, pageSize)
 	if _, err := pages.File.Seek(pageOffSet, io.SeekStart); err != nil {
-		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed to read file: %w", err)
+		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed seek to page offset: %w", err)
 	}
 
 	// read data
 	if _, err := pages.File.Read(pageBytes); err != nil {
-		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed to read file: %w", err)
+		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed to read page bytes: %w", err)
 	}
 
 	// format data
@@ -42,10 +42,10 @@ func (pages *Pages) ReadBytes(size int, offset int, pageID uint32) ([]byte, erro
 	pageOffSet := getPageOffset(pageID)
 	totalOffset := int64(offset) + pageOffSet
 	if _, err := pages.File.Seek(totalOffset, io.SeekStart); err != nil {
-		return []byte{}, fmt.Errorf("failed to write bytes: %w", err)
+		return []byte{}, fmt.Errorf("failed to seek to offset: %w", err)
 	}
 	if _, err := pages.File.Read(bytes); err != nil {
-		return []byte{}, fmt.Errorf("failed to read file: %w", err)
+		return []byte{}, fmt.Errorf("failed to read bytes: %w", err)
 	}
 	return bytes, nil
 }
@@ -58,16 +58,16 @@ func (pages *Pages) write(bytes []byte, pageID uint32, pageType PageType) error 
 		return fmt.Errorf("failed to get file size: %w", err)
 	}
 	if pageType == MetadataPage && info.Size() != 0 {
-		return errors.New("failed to add metadata page: can't metadata not a top of database")
+		return errors.New("failed to add metadata page: metadata already made")
 	}
 	if _, err := pages.File.Seek(offset, io.SeekStart); err != nil {
-		return fmt.Errorf("failed to write bytes: %w", err)
+		return fmt.Errorf("failed to seek to page offset: %w", err)
 	}
 	if _, err := pages.File.Write(bytes); err != nil {
-		return fmt.Errorf("failed to write bytes: %w", err)
+		return fmt.Errorf("failed to write bytes to file: %w", err)
 	}
 	if err := pages.File.Sync(); err != nil {
-		return fmt.Errorf("failed to write bytes: %w", err)
+		return fmt.Errorf("failed to sync file: %w", err)
 	}
 	return nil
 }
@@ -79,15 +79,13 @@ func (pages *Pages) writeBytes(bytes []byte, offset int, pageID uint32) error {
 
 	// I want to read the bytes before
 	if _, err := pages.File.Seek(totalOffset, io.SeekStart); err != nil {
-		return fmt.Errorf("failed to write bytes: %w", err)
+		return fmt.Errorf("failed to seek to offset: %w", err)
 	}
 	if _, err := pages.File.Write(bytes); err != nil {
 		return fmt.Errorf("failed to write bytes: %w", err)
 	}
-
-	// I want to read the bytes after
 	if err := pages.File.Sync(); err != nil {
-		return fmt.Errorf("failed to write bytes: %w", err)
+		return fmt.Errorf("failed to sync file: %w", err)
 	}
 	return nil
 }
@@ -97,10 +95,10 @@ func (pages *Pages) readPageMetadata(pageID uint32) (pageMetadata, error) {
 	pageOffSet := getPageOffset(pageID)
 	metadataBytes := make([]byte, pageMetadataSize)
 	if _, err := pages.File.Seek(pageOffSet, io.SeekStart); err != nil {
-		return pageMetadata{}, fmt.Errorf("failed to read the page's metadata: %w", err)
+		return pageMetadata{}, fmt.Errorf("failed to seek to page offset: %w", err)
 	}
 	if _, err := pages.File.Read(metadataBytes); err != nil {
-		return pageMetadata{}, fmt.Errorf("failed to read page's metadata: %w", err)
+		return pageMetadata{}, fmt.Errorf("failed to read page metadata bytes: %w", err)
 	}
 	pageMetadata := formatPageMetadata(metadataBytes)
 	return pageMetadata, nil
@@ -115,10 +113,10 @@ func (pages *Pages) readSlot(pageID uint32, slotID uint16) ([]byte, error) {
 	totalOffset := pageOffSet + slotOffset
 
 	if _, err := pages.File.Seek(totalOffset, io.SeekStart); err != nil {
-		return []byte{}, fmt.Errorf("failed to read slot: %w", err)
+		return []byte{}, fmt.Errorf("failed to seek to slot offset: %w", err)
 	}
 	if _, err := pages.File.Read(slotBytes); err != nil {
-		return []byte{}, fmt.Errorf("failed to read slot: %w", err)
+		return []byte{}, fmt.Errorf("failed to read slot bytes: %w", err)
 	}
 	return slotBytes, nil
 }
@@ -130,10 +128,10 @@ func (pages *Pages) readData(slot slot, pageID uint32) ([]byte, error) {
 	totalOffset := pageOffSet + int64(slot.offset)
 
 	if _, err := pages.File.Seek(totalOffset, io.SeekStart); err != nil {
-		return []byte{}, fmt.Errorf("failed to read slot: %w", err)
+		return []byte{}, fmt.Errorf("failed to seek to start of data: %w", err)
 	}
 	if _, err := pages.File.Read(dataBytes); err != nil {
-		return []byte{}, fmt.Errorf("failed to read slot: %w", err)
+		return []byte{}, fmt.Errorf("failed to read entry: %w", err)
 	}
 	return dataBytes, nil
 }

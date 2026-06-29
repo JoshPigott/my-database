@@ -32,7 +32,7 @@ func (pages *Pages) create(pageType PageType) (uint32, error) {
 	}
 	pageID, metadata, err := pages.selectPageId()
 	if err != nil {
-		return 0, fmt.Errorf("failed to create page: %w", err)
+		return 0, fmt.Errorf("failed to select page id: %w", err)
 	}
 	if pageType == DataPage {
 		metadata.lastDataPage = pageID
@@ -41,7 +41,7 @@ func (pages *Pages) create(pageType PageType) (uint32, error) {
 		return 0, err
 	}
 
-	if err := pages.updateMetadata(metadata); err != nil {
+	if err := pages.updateDBMetadata(metadata); err != nil {
 		return 0, err
 	}
 	return pageID, nil
@@ -50,9 +50,9 @@ func (pages *Pages) create(pageType PageType) (uint32, error) {
 // With database metadata selects the id for the new page
 func (pages *Pages) selectPageId() (uint32, metadata, error) {
 	var pageID uint32
-	metadata, err := pages.readMetadata()
+	metadata, err := pages.readDBMetadata()
 	if err != nil {
-		return 0, metadata, fmt.Errorf("failed to read metadata to create new page: %w", err)
+		return 0, metadata, fmt.Errorf("failed to read metadata: %w", err)
 	}
 	if metadata.nextFreePage == 0 {
 		metadata.totalNumPages++
@@ -62,7 +62,7 @@ func (pages *Pages) selectPageId() (uint32, metadata, error) {
 		// Update next page stack
 		pageIDBytes, err := pages.ReadBytes(pageIDSize, pageTypeIndex, metadata.nextFreePage)
 		if err != nil {
-			return 0, metadata, fmt.Errorf("failed to update next free page id")
+			return 0, metadata, fmt.Errorf("failed to get old first free page id: %w", err)
 		}
 		nextPageID := binary.BigEndian.Uint32(pageIDBytes)
 		metadata.nextFreePage = nextPageID
@@ -107,14 +107,14 @@ func (pages *Pages) createMetadataPage() error {
 		nextFreePage:  0,
 	}
 
-	return pages.updateMetadata(metadata)
+	return pages.updateDBMetadata(metadata)
 }
 
 // Creates the first data page when need and no more
 func (pages *Pages) createFirstDataPage() error {
 	info, err := pages.File.Stat()
 	if err != nil {
-		return fmt.Errorf("failed to read database size: %w", err)
+		return fmt.Errorf("failed to get file stats: %w", err)
 	}
 	fileSize := info.Size()
 	// Checks if only metadata page
@@ -156,12 +156,12 @@ func (pages *Pages) ensureWritablePage() (pageMetadata, uint32, error) {
 	// create a new data page
 	pageID, err := pages.create(DataPage)
 	if err != nil {
-		return pageMetadata{}, pageID, fmt.Errorf("failed to add to page %w", err)
+		return pageMetadata{}, pageID, fmt.Errorf("failed to create data page %w", err)
 	}
 	// Compute new page values
 	pageMetadata, err := pages.readPageMetadata(pageID)
 	if err != nil {
-		return pageMetadata, pageID, fmt.Errorf("failed to get metadata: %w", err)
+		return pageMetadata, pageID, fmt.Errorf("failed to read database metadata: %w", err)
 	}
 	return pageMetadata, pageID, nil
 }

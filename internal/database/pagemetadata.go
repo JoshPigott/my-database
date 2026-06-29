@@ -30,7 +30,7 @@ func (pages *Pages) updatePageMetadata(pageMetadata pageMetadata) error {
 	buf := createMetadataBuffer(pageMetadata)
 	err := pages.writeBytes(buf, 0, pageMetadata.pageID)
 	if err != nil {
-		return fmt.Errorf("failed to update page metadata: %w", err)
+		return fmt.Errorf("failed to write page metadata: %w", err)
 	}
 	return nil
 }

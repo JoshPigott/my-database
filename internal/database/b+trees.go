@@ -28,29 +28,18 @@ type KeyLocation struct {
 	SlotID uint16
 }
 
-func (pages *Pages) NewBTree() (*BTree, error) {
-	rootNode, err := pages.newNode(true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new b+tree: %w", err)
-	}
-	t := &BTree{
-		root: rootNode,
-	}
-	return t, nil
-}
-
 func (pages *Pages) newNode(isLeaf bool) (*node, error) {
 	var pageID uint32
 	var err error
 	if isLeaf {
 		pageID, err = pages.create(LeafPage)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create new leaf node: %w", err)
+			return nil, fmt.Errorf("failed to create new page for leaf node: %w", err)
 		}
 	} else {
 		pageID, err = pages.create(InternalPage)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create new leaf node: %w", err)
+			return nil, fmt.Errorf("failed to create new page for interal node: %w", err)
 		}
 	}
 	n := &node{
@@ -71,7 +60,7 @@ func newKeyLocation(pageID uint32, slotID uint16) *KeyLocation {
 // A wrapper for insert to handle spliting of the root
 func (db *DB) Insert(key string, pageID uint32, slotID uint16) error {
 	KeyLocation := newKeyLocation(pageID, slotID)
-	splitResult, left, right, err := db.T.root.insert(key, KeyLocation)
+	splitResult, left, right, err := db.Root.insert(key, KeyLocation)
 	if err != nil {
 		return err
 	}
@@ -84,11 +73,11 @@ func (db *DB) Insert(key string, pageID uint32, slotID uint16) error {
 			return fmt.Errorf("failed to add key to new root node: %w", err)
 		}
 		if err := newRoot.writeNodeToPage(); err != nil {
-			return fmt.Errorf("failed to insert new key: %w", err)
+			return fmt.Errorf("failed to add new key page: %w", err)
 		}
-		db.T.root = newRoot
+		db.Root = newRoot
 		if err := newRoot.rootPageLink(); err != nil {
-			return fmt.Errorf("failed to insert new key: %w", err)
+			return fmt.Errorf("failed to add new page link: %w", err)
 		}
 	}
 	return nil
@@ -96,7 +85,7 @@ func (db *DB) Insert(key string, pageID uint32, slotID uint16) error {
 
 // Find the location of the key return KeyLocation and if found
 func (db *DB) FindKeyLocation(key string) (*KeyLocation, bool, error) {
-	n, inTree, err := db.T.findNode(key)
+	n, inTree, err := db.Root.findNode(key)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to find node: %w", err)
 	}
@@ -109,9 +98,9 @@ func (db *DB) FindKeyLocation(key string) (*KeyLocation, bool, error) {
 }
 
 // Returns if key in tree and key
-func (t *BTree) findNode(key string) (*node, bool, error) {
+func (r *node) findNode(key string) (*node, bool, error) {
 	var err error
-	n := t.root
+	n := r
 	for {
 		if n.leaf {
 			if slices.Contains(n.keys, key) {
@@ -139,7 +128,7 @@ func (n *node) insert(key string, keyLocation *KeyLocation) (*string, *node, *no
 		}
 		if splitResult == nil {
 			if err := n.writeNodeToPage(); err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to insert new key: %w", err)
+				return nil, nil, nil, fmt.Errorf("failed to write new new to page: %w", err)
 			}
 		}
 		return splitResult, left, right, nil
@@ -157,7 +146,7 @@ func (n *node) insert(key string, keyLocation *KeyLocation) (*string, *node, *no
 func (n *node) performSplit(splitResult *string, left *node, right *node) (*string, *node, *node, error) {
 	if splitResult == nil {
 		if err := n.writeNodeToPage(); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to insert new key: %w", err)
+			return nil, nil, nil, fmt.Errorf("failed write node to disk: %w", err)
 		}
 		return nil, nil, nil, nil
 	}
@@ -167,7 +156,7 @@ func (n *node) performSplit(splitResult *string, left *node, right *node) (*stri
 	}
 	if splitResult == nil {
 		if err := n.writeNodeToPage(); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to insert new key: %w", err)
+			return nil, nil, nil, fmt.Errorf("failed write node to disk: %w", err)
 		}
 	}
 	return splitResult, left, right, nil
@@ -248,7 +237,7 @@ func (n *node) addChildern(left *node, right *node) {
 func (n *node) split() (*string, *node, *node, error) {
 	right, err := n.pages.newNode(n.leaf)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to split node: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create new node: %w", err)
 	}
 
 	middleIndex := len(n.keys) / 2
@@ -298,20 +287,19 @@ func (n *node) split() (*string, *node, *node, error) {
 
 	// Write node to disk
 	if err := n.writeNodeToPage(); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to split node: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed write left spilt node to disk: %w", err)
 	}
 	if err := right.writeNodeToPage(); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to split node: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed write right spilt node to disk: %w", err)
 	}
 
 	return middlekey, n, right, nil
 }
 
 // Finds the child where the key should be inesrt at. Read the child if not in memory
-func (n *node) findChild(key string) (*node, int, error) {
-	for i := range len(n.keys) {
-		if strings.Compare(key, n.keys[i]) < 0 {
-
+func (n *node) findChild(targetKey string) (*node, int, error) {
+	for i, key := range n.keys {
+		if strings.Compare(targetKey, key) < 0 {
 			if n.children[i] != nil {
 				return n.children[i], i, nil
 			}
@@ -338,8 +326,8 @@ func (n *node) findChild(key string) (*node, int, error) {
 }
 
 // Used for debugging
-func (t *BTree) PrintLinkedList() {
-	n := t.root
+func (r *node) PrintLinkedList() {
+	n := r
 	for !n.leaf {
 		n = n.children[0]
 	}

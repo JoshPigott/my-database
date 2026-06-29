@@ -39,9 +39,9 @@ func (db *DB) AddToPage(key string, value string) error {
 	}
 
 	// Get database metadata
-	metadata, err := db.Pages.readMetadata()
+	metadata, err := db.Pages.readDBMetadata()
 	if err != nil {
-		return fmt.Errorf("failed to read : %w", err)
+		return fmt.Errorf("failed to read database metadata: %w", err)
 	}
 	pageID := metadata.lastDataPage
 
@@ -49,7 +49,7 @@ func (db *DB) AddToPage(key string, value string) error {
 	dataSize := keyLenStorageSize + len(key) + valueLenStorageSize + len(value)
 	pageMetadata, err := db.Pages.readPageMetadata(pageID)
 	if err != nil {
-		return fmt.Errorf("failed to get metadata")
+		return fmt.Errorf("failed to read pages metadata: %w", err)
 	}
 
 	// Validate capacity
@@ -82,7 +82,7 @@ func (db *DB) AddToPage(key string, value string) error {
 
 	// Add to b+tree
 	if err := db.Insert(key, pageID, pageMetadata.numEntries); err != nil {
-		return fmt.Errorf("failed to add to page: %w", err)
+		return fmt.Errorf("failed insert into b+tree: %w", err)
 	}
 
 	// Update page metadata
@@ -90,7 +90,7 @@ func (db *DB) AddToPage(key string, value string) error {
 	pageMetadata.freeSpaceStart += uint16(slotSize)
 	pageMetadata.freeSpaceEnd -= uint16(dataSize)
 	if err := db.Pages.updatePageMetadata(pageMetadata); err != nil {
-		return fmt.Errorf("failed to update metadata")
+		return fmt.Errorf("failed to update page metadata: %w", err)
 	}
 	return nil
 }
@@ -99,7 +99,7 @@ func (db *DB) AddToPage(key string, value string) error {
 func (db *DB) Delete(key string) error {
 	numOfPagesToRead, err := db.Pages.getNumOfPagesToRead()
 	if err != nil {
-		return fmt.Errorf("failed to get page of pages to read")
+		return fmt.Errorf("failed to get page of pages to read: %w", err)
 	}
 	// Loops over each page
 	for pageID := 1; pageID <= numOfPagesToRead; pageID++ {
@@ -129,7 +129,7 @@ func (db *DB) Delete(key string) error {
 			db.Pages.writeBytes(slotFlagBytes, slotFlagOffset, uint32(pageID))
 		}
 	}
-	if err := db.T.Delete(key); err != nil {
+	if err := db.Root.Delete(key); err != nil {
 		return fmt.Errorf("failed to to delete key in b+tree: %w", err)
 	}
 	return nil
@@ -140,7 +140,7 @@ func (db *DB) SelectAll() (map[string]string, error) {
 	entries := map[string]string{}
 	numOfPagesToRead, err := db.Pages.getNumOfPagesToRead()
 	if err != nil {
-		return entries, fmt.Errorf("failed to get page of pages to read")
+		return entries, fmt.Errorf("failed to get page of pages to read %w", err)
 	}
 	// Loops over each page
 	for pageID := 1; pageID <= numOfPagesToRead; pageID++ {
@@ -187,22 +187,22 @@ func (db *DB) SelectWhere(condition MathConditions, boundaryKey string) ([]data,
 	case GreaterThan:
 		selectedData, err = db.getMoreThan(boundaryKey, false)
 		if err != nil {
-			return nil, fmt.Errorf("failed to select data: %w", err)
+			return nil, fmt.Errorf("failed to select data more than %s: %w", boundaryKey, err)
 		}
 	case GreaterThanOrEqualTo:
 		selectedData, err = db.getMoreThan(boundaryKey, true)
 		if err != nil {
-			return nil, fmt.Errorf("failed to select data: %w", err)
+			return nil, fmt.Errorf("failed to select data more than or equal to %s: %w", boundaryKey, err)
 		}
 	case LessThan:
 		selectedData, err = db.getLessThan(boundaryKey, false)
 		if err != nil {
-			return nil, fmt.Errorf("failed to select data: %w", err)
+			return nil, fmt.Errorf("failed to select data less than %s: %w", boundaryKey, err)
 		}
 	case LessThanOrEqualTo:
 		selectedData, err = db.getLessThan(boundaryKey, true)
 		if err != nil {
-			return nil, fmt.Errorf("failed to select data: %w", err)
+			return nil, fmt.Errorf("failed to select data less than or equal to %s: %w", boundaryKey, err)
 		}
 	default:
 		return nil, errors.New("invaild condition")

@@ -100,12 +100,12 @@ func getDataOffset(freeSpace int, dataSize int, numEntries uint16) int {
 func (pages *Pages) selectValue(keyLocation *KeyLocation) (string, string, error) {
 	slotBytes, err := pages.readSlot(keyLocation.PageID, keyLocation.SlotID)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to select value: %w", err)
+		return "", "", fmt.Errorf("failed to read slot: %w", err)
 	}
 	formatedSlot := formatSlot(slotBytes)
 	dataBytes, err := pages.readData(formatedSlot, keyLocation.PageID)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to select value: %w", err)
+		return "", "", fmt.Errorf("failed to read data: %w", err)
 	}
 	data := readEntry(dataBytes)
 	return data.key, data.value, nil
@@ -114,16 +114,16 @@ func (pages *Pages) selectValue(keyLocation *KeyLocation) (string, string, error
 // Used to slecet than or equal to a boundary key
 func (db *DB) getMoreThan(boundaryKey string, equalTo bool) ([]data, error) {
 	var selectedData []data
-	n, _, err := db.T.findNode(boundaryKey)
+	n, _, err := db.Root.findNode(boundaryKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find leaf node: %w", err)
+		return nil, fmt.Errorf("failed to find node: %w", err)
 	}
 	// Adds in speffic keys from the first node
 	for i, key := range n.keys {
 		if equalTo && strings.Compare(key, boundaryKey) >= 0 {
 			key, value, err := db.Pages.selectValue(n.keyLocations[i])
 			if err != nil {
-				return nil, fmt.Errorf("failed to get data from key location: %w", err)
+				return nil, fmt.Errorf("failed to select value: %w", err)
 			}
 			data := newData(key, value)
 			selectedData = append(selectedData, data)
@@ -131,7 +131,7 @@ func (db *DB) getMoreThan(boundaryKey string, equalTo bool) ([]data, error) {
 		if !equalTo && strings.Compare(key, boundaryKey) > 0 {
 			key, value, err := db.Pages.selectValue(n.keyLocations[i])
 			if err != nil {
-				return nil, fmt.Errorf("failed to get data from key location: %w", err)
+				return nil, fmt.Errorf("failed to select value: %w", err)
 			}
 			data := newData(key, value)
 			selectedData = append(selectedData, data)
@@ -144,13 +144,13 @@ func (db *DB) getMoreThan(boundaryKey string, equalTo bool) ([]data, error) {
 		} else {
 			n, err = n.pages.ReadPageNode(n.NextID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to read next page: %w", err)
+				return nil, fmt.Errorf("failed to read next node page: %w", err)
 			}
 		}
 		for _, keyLocation := range n.keyLocations {
 			key, value, err := db.Pages.selectValue(keyLocation)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get data from key location: %w", err)
+				return nil, fmt.Errorf("failed to select value: %w", err)
 			}
 			data := newData(key, value)
 			selectedData = append(selectedData, data)
@@ -164,12 +164,12 @@ func (db *DB) getLessThan(boundaryKey string, equalTo bool) ([]data, error) {
 	var selectedData []data
 	var err error
 	// Get left most node
-	n := db.T.root
+	n := db.Root
 	for !n.leaf {
 		if n.children[0] == nil {
 			n, err = n.pages.ReadPageNode(n.childPageIDs[0])
 			if err != nil {
-				return []data{}, fmt.Errorf("failed to get left most child: %w", err)
+				return []data{}, fmt.Errorf("failed to read left child node page: %w", err)
 			}
 		}
 		n = n.children[0]
@@ -178,7 +178,7 @@ func (db *DB) getLessThan(boundaryKey string, equalTo bool) ([]data, error) {
 	for n != nil {
 		nodesData, err := n.selectNodesData(boundaryKey, equalTo)
 		if err != nil {
-			return nil, fmt.Errorf("failed to select current nodes data")
+			return nil, fmt.Errorf("failed to select current nodes data: %w", err)
 		}
 		selectedData = append(selectedData, nodesData...)
 
@@ -200,25 +200,26 @@ func (db *DB) getLessThan(boundaryKey string, equalTo bool) ([]data, error) {
 // Read current node keys and selects data less the boundary key
 func (n *node) selectNodesData(boundaryKey string, equalTo bool) ([]data, error) {
 	var nodesData []data
-	for _, keyLocation := range n.keyLocations {
-		key, value, err := n.pages.selectValue(keyLocation)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get data from key location: %w", err)
+	for i, key := range n.keys {
+		if strings.Compare(boundaryKey, key) < 0 {
+			return nodesData, nil
 		}
 		if equalTo && strings.Compare(boundaryKey, key) == 0 {
+			key, value, err := n.pages.selectValue(n.keyLocations[i])
+			if err != nil {
+				return nil, fmt.Errorf("failed to select valu: %w", err)
+			}
 			data := newData(key, value)
 			nodesData = append(nodesData, data)
 			return nodesData, nil
 		}
-		if strings.Compare(boundaryKey, key) <= 0 {
-			return nodesData, nil
-		}
-
-		data := newData(key, value)
-		nodesData = append(nodesData, data)
-
-		if equalTo && strings.Compare(boundaryKey, key) <= 0 {
-			return nodesData, nil
+		if strings.Compare(boundaryKey, key) > 0 {
+			key, value, err := n.pages.selectValue(n.keyLocations[i])
+			if err != nil {
+				return nil, fmt.Errorf("failed to select value: %w", err)
+			}
+			data := newData(key, value)
+			nodesData = append(nodesData, data)
 		}
 	}
 	return nodesData, nil

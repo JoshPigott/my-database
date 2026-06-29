@@ -38,21 +38,5 @@ Phase 6 — Simple query engine
 Phase 7 — Transactions (hard but important)
 Phase 8 — Indexes
 
-Maybe I should update docs at some point
-
-But  B tree package next
-
-Could be good to watch
-https://www.youtube.com/watch?v=09E-tVAUqQw&pp=ygURYisgdHJlZSBleHBsYWluZWQ%3D
-
-To implement B trees 
- 
-
-Plan
 Readme
 Next thing to work on
-
-
-Do in the refactor
-Ask if anything to improve
-selectNodesData promblem I need to fix that like read then making choice

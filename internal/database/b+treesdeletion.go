@@ -8,16 +8,16 @@ import (
 )
 
 // Handles making the tree shallower
-func (t *BTree) Delete(key string) error {
-	if err := t.root.delete(key); err != nil {
+func (r *node) Delete(key string) error {
+	if err := r.delete(key); err != nil {
 		return err
 	}
 
-	if len(t.root.keys) == 0 && len(t.root.children) > 0 {
-		oldRoot := t.root
-		t.root = t.root.children[0]
-		if err := t.root.rootPageLink(); err != nil {
-			return fmt.Errorf("failed to delete key: %w", err)
+	if len(r.keys) == 0 && len(r.children) > 0 {
+		oldRoot := r
+		r = r.children[0]
+		if err := r.rootPageLink(); err != nil {
+			return fmt.Errorf("failed to update root page link: %w", err)
 		}
 		if err := oldRoot.deleteNodePage(); err != nil {
 			return fmt.Errorf("failed to delete old root page: %w", err)
@@ -42,7 +42,7 @@ func (n *node) delete(key string) error {
 				n.keys = append(n.keys[:i], n.keys[i+1:]...)
 				n.keyLocations = append(n.keyLocations[:i], n.keyLocations[i+1:]...)
 				if err := n.writeNodeToPage(); err != nil {
-					return fmt.Errorf("failed to delete key: %w", err)
+					return fmt.Errorf("failed to write node to page: %w", err)
 				}
 				return nil
 			}
@@ -70,30 +70,30 @@ func (n *node) fixUnderflow(i int) error {
 	// Load children pages
 	if hasLeftSibling {
 		if err := n.loadChildren(i - 1); err != nil {
-			return fmt.Errorf("failed to delete key: %w", err)
+			return fmt.Errorf("failed to load left child node: %w", err)
 		}
 	}
 	if hasRightSibling {
 		if err := n.loadChildren(i + 1); err != nil {
-			return fmt.Errorf("failed to delete key: %w", err)
+			return fmt.Errorf("failed to load rigth child node: %w", err)
 		}
 	}
 
 	if hasLeftSibling && n.needsLeftRedistribution(i) {
 		if err := n.leftRedistribution(i); err != nil {
-			return fmt.Errorf("failed delete key: %w", err)
+			return fmt.Errorf("failed to left redistribution: %w", err)
 		}
 	} else if hasRightSibling && n.needsRightRedistribution(i) {
 		if err := n.rightRedistribution(i); err != nil {
-			return fmt.Errorf("failed to delete key: %w", err)
+			return fmt.Errorf("failed to right redistribution: %w", err)
 		}
 	} else if hasLeftSibling {
 		if err := n.mergeWithLeft(i); err != nil {
-			return fmt.Errorf("failed to delete key: %w", err)
+			return fmt.Errorf("failed to merge with left: %w", err)
 		}
 	} else if hasRightSibling {
 		if err := n.mergeWithRight(i); err != nil {
-			return fmt.Errorf("failed to delete key: %w", err)
+			return fmt.Errorf("failed to merge with right: %w", err)
 		}
 	}
 	return nil
@@ -176,13 +176,13 @@ func (n *node) redistribution(i int, withLeft bool) error {
 
 	// Writes nodes to disk
 	if err := n.writeNodeToPage(); err != nil {
-		return fmt.Errorf("failed to do redistribution: %w", err)
+		return fmt.Errorf("failed to write parent node to disk: %w", err)
 	}
 	if err := r.writeNodeToPage(); err != nil {
-		return fmt.Errorf("failed to do redistribution: %w", err)
+		return fmt.Errorf("failed to write right sibling to disk: %w", err)
 	}
 	if err := l.writeNodeToPage(); err != nil {
-		return fmt.Errorf("failed to do redistribution: %w", err)
+		return fmt.Errorf("failed to write left sibling to disk: %w", err)
 	}
 	return nil
 }
@@ -250,13 +250,13 @@ func (n *node) merge(i int, withLeft bool) error {
 
 	// Write nodes to disk
 	if err := n.writeNodeToPage(); err != nil {
-		return fmt.Errorf("failed to merge: %w", err)
+		return fmt.Errorf("failed to write parent node to disk: %w", err)
 	}
 	if err := l.writeNodeToPage(); err != nil {
-		return fmt.Errorf("failed to merge: %w", err)
+		return fmt.Errorf("failed to write left sibling to disk: %w", err)
 	}
 	if err := r.deleteNodePage(); err != nil {
-		return fmt.Errorf("failed to merge: %w", err)
+		return fmt.Errorf("failed to delete right node page: %w", err)
 	}
 	return nil
 }
@@ -272,7 +272,7 @@ func (n *node) loadChildren(j int) error {
 	}
 	n.children[j], err = n.pages.ReadPageNode(n.childPageIDs[j])
 	if err != nil {
-		return fmt.Errorf("failed to read right child: %w", err)
+		return fmt.Errorf("failed to read child nodes page: %w", err)
 	}
 	return nil
 }

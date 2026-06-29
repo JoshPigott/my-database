@@ -22,13 +22,6 @@ func testDatabase() {
 	if err := DB.Close(); err != nil {
 		fmt.Println(err)
 	}
-	DB, err = database.Open()
-	if err != nil {
-		fmt.Println(err)
-	}
-	if err := DB.Close(); err != nil {
-		fmt.Println(err)
-	}
 }
 
 func lookAtFile() {
