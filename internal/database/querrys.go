@@ -28,7 +28,7 @@ func (db *DB) Close() error {
 }
 
 // Adds to page if there is room to add the page
-func (db *DB) AddToPage(key string, value string) error { // Prop
+func (db *DB) AddToPage(key string, value string) error {
 	var pageID uint32
 
 	// Check input sizes
@@ -94,12 +94,11 @@ func (db *DB) AddToPage(key string, value string) error { // Prop
 	if err := db.Pages.updatePageMetadata(pageMetadata); err != nil {
 		return fmt.Errorf("failed to update metadata")
 	}
-
 	return nil
 }
 
 // Check all the data records and if it matches the key updates the flag
-func (db *DB) Delete(key string) error { // Maybe
+func (db *DB) Delete(key string) error {
 	numOfPagesToRead, err := db.Pages.getNumOfPagesToRead()
 	if err != nil {
 		return fmt.Errorf("failed to get page of pages to read")
@@ -114,11 +113,11 @@ func (db *DB) Delete(key string) error { // Maybe
 		if pageMetadata.pageType != DataPage {
 			continue
 		}
-
 		records, err := db.Pages.read(uint32(pageID))
 		if err != nil {
 			return fmt.Errorf("failed to read page: %w", err)
 		}
+		// Checks if check is in page
 		for _, record := range records {
 			if record.data.key != key {
 				continue
@@ -175,7 +174,7 @@ func (db *DB) Select(key string) (string, bool, error) {
 	if inTree == false {
 		return "", false, nil
 	}
-	_, value, err := db.selectValue(keyLocation)
+	_, value, err := db.Pages.selectValue(keyLocation)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to read value with key location: %w", err)
 	}
@@ -183,8 +182,8 @@ func (db *DB) Select(key string) (string, bool, error) {
 }
 
 // Used like where x > 5.
-func (db *DB) SelectWhere(condition MathConditions, boundaryKey string) (*[]data, error) {
-	var selectedData *[]data
+func (db *DB) SelectWhere(condition MathConditions, boundaryKey string) ([]data, error) {
+	var selectedData []data
 	var err error
 	switch condition {
 	case GreaterThan:

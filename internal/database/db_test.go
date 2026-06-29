@@ -754,16 +754,16 @@ func TestSelectWhere(t *testing.T) {
 				t.Fatalf("SelectWhere failed: %v", err)
 			}
 
-			if len(*got) != tt.wantCount {
+			if len(got) != tt.wantCount {
 				t.Fatalf(
 					"expected %d rows, got %d",
 					tt.wantCount,
-					len(*got),
+					len(got),
 				)
 			}
 
 			// Deleted records should never appear.
-			for _, d := range *got {
+			for _, d := range got {
 				if d.key == deleted1 {
 					t.Fatalf("deleted key %q returned", deleted1)
 				}
@@ -809,11 +809,11 @@ func TestSelectWhere_ReopenDB(t *testing.T) {
 				t.Fatalf("SelectWhere failed: %v", err)
 			}
 
-			if len(*got) != tt.wantCount {
-				t.Fatalf("expected %d, got %d", tt.wantCount, len(*got))
+			if len(got) != tt.wantCount {
+				t.Fatalf("expected %d, got %d", tt.wantCount, len(got))
 			}
 
-			for _, d := range *got {
+			for _, d := range got {
 				if d.key == deleted1 || d.key == deleted2 {
 					t.Fatalf("deleted key returned after reopen: %q", d.key)
 				}

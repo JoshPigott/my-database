@@ -30,7 +30,7 @@ func (pages *Pages) create(pageType PageType) (uint32, error) {
 	if pageType == MetadataPage {
 		return 0, errors.New("failed to create page: invalid funcation for creating metadata page")
 	}
-	pageID, metadata, err := pages.selectPageIdForWrite()
+	pageID, metadata, err := pages.selectPageId()
 	if err != nil {
 		return 0, fmt.Errorf("failed to create page: %w", err)
 	}
@@ -48,7 +48,7 @@ func (pages *Pages) create(pageType PageType) (uint32, error) {
 }
 
 // With database metadata selects the id for the new page
-func (pages *Pages) selectPageIdForWrite() (uint32, metadata, error) {
+func (pages *Pages) selectPageId() (uint32, metadata, error) {
 	var pageID uint32
 	metadata, err := pages.readMetadata()
 	if err != nil {

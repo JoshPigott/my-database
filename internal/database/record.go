@@ -97,13 +97,13 @@ func getDataOffset(freeSpace int, dataSize int, numEntries uint16) int {
 }
 
 // Get the value with a give key location
-func (db *DB) selectValue(keyLocation *KeyLocation) (string, string, error) {
-	slotBytes, err := db.Pages.readSlot(keyLocation.PageID, keyLocation.SlotID)
+func (pages *Pages) selectValue(keyLocation *KeyLocation) (string, string, error) {
+	slotBytes, err := pages.readSlot(keyLocation.PageID, keyLocation.SlotID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to select value: %w", err)
 	}
 	formatedSlot := formatSlot(slotBytes)
-	dataBytes, err := db.Pages.readData(formatedSlot, keyLocation.PageID)
+	dataBytes, err := pages.readData(formatedSlot, keyLocation.PageID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to select value: %w", err)
 	}
@@ -112,7 +112,7 @@ func (db *DB) selectValue(keyLocation *KeyLocation) (string, string, error) {
 }
 
 // Used to slecet than or equal to a boundary key
-func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) { // Maybe
+func (db *DB) getMoreThan(boundaryKey string, equalTo bool) ([]data, error) { // Maybe
 	var selectedData []data
 	n, _, err := db.T.findNode(boundaryKey)
 	if err != nil {
@@ -121,7 +121,7 @@ func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) { /
 	// Adds in speffic keys from the first node
 	for i, key := range n.keys {
 		if equalTo && strings.Compare(key, boundaryKey) >= 0 {
-			key, value, err := db.selectValue(n.keyLocations[i])
+			key, value, err := db.Pages.selectValue(n.keyLocations[i])
 			if err != nil {
 				return nil, fmt.Errorf("failed to get data from key location: %w", err)
 			}
@@ -129,7 +129,7 @@ func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) { /
 			selectedData = append(selectedData, data)
 		}
 		if !equalTo && strings.Compare(key, boundaryKey) > 0 {
-			key, value, err := db.selectValue(n.keyLocations[i])
+			key, value, err := db.Pages.selectValue(n.keyLocations[i])
 			if err != nil {
 				return nil, fmt.Errorf("failed to get data from key location: %w", err)
 			}
@@ -148,7 +148,7 @@ func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) { /
 			}
 		}
 		for _, keyLocation := range n.keyLocations {
-			key, value, err := db.selectValue(keyLocation)
+			key, value, err := db.Pages.selectValue(keyLocation)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get data from key location: %w", err)
 			}
@@ -156,40 +156,23 @@ func (db *DB) getMoreThan(boundaryKey string, equalTo bool) (*[]data, error) { /
 			selectedData = append(selectedData, data)
 		}
 	}
-	return &selectedData, nil
+	return selectedData, nil
 }
 
 // Select all data less than a spefic boundary keys
-func (db *DB) getLessThan(boundaryKey string, equalTo bool) (*[]data, error) { // Maybe
+func (db *DB) getLessThan(boundaryKey string, equalTo bool) ([]data, error) {
 	var selectedData []data
-	var err error
 	// Get left most node
 	n := db.T.root
 	for !n.leaf {
 		n = n.children[0]
 	}
 	for n != nil {
-		for _, keyLocation := range n.keyLocations {
-			key, value, err := db.selectValue(keyLocation)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get data from key location: %w", err)
-			}
-			if equalTo && strings.Compare(boundaryKey, key) == 0 {
-				data := newData(key, value)
-				selectedData = append(selectedData, data)
-				return &selectedData, nil
-			}
-			if strings.Compare(boundaryKey, key) <= 0 {
-				return &selectedData, nil
-			}
-
-			data := newData(key, value)
-			selectedData = append(selectedData, data)
-
-			if equalTo && strings.Compare(boundaryKey, key) <= 0 {
-				return &selectedData, nil
-			}
+		nodesData, err := n.selectNodesData(boundaryKey, equalTo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to select current nodes data")
 		}
+		selectedData = append(selectedData, nodesData...)
 
 		switch {
 		case n.Next != nil:
@@ -203,5 +186,32 @@ func (db *DB) getLessThan(boundaryKey string, equalTo bool) (*[]data, error) { /
 			n = nil
 		}
 	}
-	return &selectedData, nil
+	return selectedData, nil
+}
+
+// Read current node keys and selects data less the boundary key
+func (n *node) selectNodesData(boundaryKey string, equalTo bool) ([]data, error) {
+	var nodesData []data
+	for _, keyLocation := range n.keyLocations {
+		key, value, err := n.pages.selectValue(keyLocation)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get data from key location: %w", err)
+		}
+		if equalTo && strings.Compare(boundaryKey, key) == 0 {
+			data := newData(key, value)
+			nodesData = append(nodesData, data)
+			return nodesData, nil
+		}
+		if strings.Compare(boundaryKey, key) <= 0 {
+			return nodesData, nil
+		}
+
+		data := newData(key, value)
+		nodesData = append(nodesData, data)
+
+		if equalTo && strings.Compare(boundaryKey, key) <= 0 {
+			return nodesData, nil
+		}
+	}
+	return nodesData, nil
 }

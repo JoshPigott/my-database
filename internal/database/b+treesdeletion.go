@@ -100,7 +100,7 @@ func (n *node) fixUnderflow(i int) error {
 }
 
 // Rewrites child and right child to have the a more even split of data
-func (n *node) redistribution(i int, isLeftRedistribution bool) error { // Maybe
+func (n *node) redistribution(i int, isLeftRedistribution bool) error {
 	var l *node
 	var r *node
 	if isLeftRedistribution {
