@@ -56,5 +56,8 @@ Do a good readme
 Do in the refactor
 Quite a few of the funcation are just too long
 I should also just look for ugly code
+How silmar to mergre with right like will need to look at that
+remove left over comments
+I just doing the funcation splits not reabltity ones
 
 Quite a few of the funcation are just too long

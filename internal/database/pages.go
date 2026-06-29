@@ -26,14 +26,33 @@ const (
 )
 
 // Creates all pages
-func (pages *Pages) create(pageType PageType) (uint32, error) { // Maybe
-	var pageID uint32
+func (pages *Pages) create(pageType PageType) (uint32, error) {
 	if pageType == MetadataPage {
 		return 0, errors.New("failed to create page: invalid funcation for creating metadata page")
 	}
+	pageID, metadata, err := pages.selectPageIdForWrite()
+	if err != nil {
+		return 0, fmt.Errorf("failed to create page: %w", err)
+	}
+	if pageType == DataPage {
+		metadata.lastDataPage = pageID
+	}
+	if err := pages.writeNewPage(pageID, pageType); err != nil {
+		return 0, err
+	}
+
+	if err := pages.updateMetadata(metadata); err != nil {
+		return 0, err
+	}
+	return pageID, nil
+}
+
+// With database metadata selects the id for the new page
+func (pages *Pages) selectPageIdForWrite() (uint32, metadata, error) {
+	var pageID uint32
 	metadata, err := pages.readMetadata()
 	if err != nil {
-		return 0, fmt.Errorf("failed to read metadata to create new page: %w", err)
+		return 0, metadata, fmt.Errorf("failed to read metadata to create new page: %w", err)
 	}
 	if metadata.nextFreePage == 0 {
 		metadata.totalNumPages++
@@ -43,23 +62,12 @@ func (pages *Pages) create(pageType PageType) (uint32, error) { // Maybe
 		// Update next page stack
 		pageIDBytes, err := pages.ReadBytes(pageIDSize, pageTypeIndex, metadata.nextFreePage)
 		if err != nil {
-			return 0, fmt.Errorf("failed to update next free page id")
+			return 0, metadata, fmt.Errorf("failed to update next free page id")
 		}
 		nextPageID := binary.BigEndian.Uint32(pageIDBytes)
 		metadata.nextFreePage = nextPageID
 	}
-	if pageType == DataPage {
-		metadata.lastDataPage = pageID
-	}
-
-	if err := pages.writeNewPage(pageID, pageType); err != nil {
-		return 0, err
-	}
-
-	if err := pages.updateMetadata(metadata); err != nil {
-		return 0, err
-	}
-	return pageID, nil
+	return pageID, metadata, nil
 }
 
 // Write new page adding default metadata

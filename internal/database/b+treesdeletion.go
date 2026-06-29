@@ -31,7 +31,7 @@ Build a call stack to locate the leaf node.
 Delete the key from the leaf node.
 Rebalance the tree if necessary.
 */
-func (n *node) delete(key string) error { // I think the underflow part
+func (n *node) delete(key string) error {
 	if n.leaf {
 		if !slices.Contains(n.keys, key) {
 			return nil
@@ -295,7 +295,7 @@ func (n *node) loadChildren(j int) error {
 }
 
 // Find the key index to split page as equal as possible in half
-func redistributionIndex(keys []string) int { // Maybe
+func redistributionIndex(keys []string) int {
 	shortestDistance := math.MaxInt
 	totalLen := 0
 	for _, key := range keys {
@@ -306,6 +306,7 @@ func redistributionIndex(keys []string) int { // Maybe
 	currLen := 0
 	middleIndex := 0
 
+	// Calculates index
 	for i, key := range keys {
 		currLen += len(key)
 		distanceFromMiddle := abs(halfLen - currLen)

@@ -60,7 +60,7 @@ func newDatabase(file *os.File) (*DB, error) {
 // Get tree or makes tree
 func (pages *Pages) getTree() (*BTree, error) {
 	var t *BTree
-	rootID, isRoot, err := pages.getRootPage() // Bad here
+	rootID, isRoot, err := pages.getRootPage()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root page: %w", err)
 	}
