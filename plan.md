@@ -54,5 +54,5 @@ Next thing to work on
 
 
 Do in the refactor
-How silmar to mergre with right like will need to look at that
-
+Ask if anything to improve
+selectNodesData promblem I need to fix that like read then making choice

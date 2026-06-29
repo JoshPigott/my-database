@@ -162,10 +162,18 @@ func (db *DB) getMoreThan(boundaryKey string, equalTo bool) ([]data, error) {
 // Select all data less than a spefic boundary keys
 func (db *DB) getLessThan(boundaryKey string, equalTo bool) ([]data, error) {
 	var selectedData []data
+	var err error
 	// Get left most node
 	n := db.T.root
 	for !n.leaf {
+		if n.children[0] == nil {
+			n, err = n.pages.ReadPageNode(n.childPageIDs[0])
+			if err != nil {
+				return []data{}, fmt.Errorf("failed to get left most child: %w", err)
+			}
+		}
 		n = n.children[0]
+
 	}
 	for n != nil {
 		nodesData, err := n.selectNodesData(boundaryKey, equalTo)

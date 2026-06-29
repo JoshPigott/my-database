@@ -29,8 +29,6 @@ func (db *DB) Close() error {
 
 // Adds to page if there is room to add the page
 func (db *DB) AddToPage(key string, value string) error {
-	var pageID uint32
-
 	// Check input sizes
 	if len(key) > maxKeySize && len(value) > maxValueSize {
 		return errors.New("too long key and value")
@@ -45,7 +43,7 @@ func (db *DB) AddToPage(key string, value string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read : %w", err)
 	}
-	pageID = metadata.lastDataPage
+	pageID := metadata.lastDataPage
 
 	// Calculate required space
 	dataSize := keyLenStorageSize + len(key) + valueLenStorageSize + len(value)
@@ -171,7 +169,7 @@ func (db *DB) Select(key string) (string, bool, error) {
 	if err != nil {
 		return "", false, fmt.Errorf("failed to select value: %w", err)
 	}
-	if inTree == false {
+	if !inTree {
 		return "", false, nil
 	}
 	_, value, err := db.Pages.selectValue(keyLocation)

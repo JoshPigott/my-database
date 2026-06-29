@@ -64,34 +64,34 @@ func (n *node) delete(key string) error {
 
 // Updates child keys to ensure the child node has sufficient keys
 func (n *node) fixUnderflow(i int) error {
-	isLeft := i != 0
-	isRight := i != len(n.children)-1
+	hasLeftSibling := i != 0
+	hasRightSibling := i != len(n.children)-1
 
 	// Load children pages
-	if isLeft {
+	if hasLeftSibling {
 		if err := n.loadChildren(i - 1); err != nil {
 			return fmt.Errorf("failed to delete key: %w", err)
 		}
 	}
-	if isRight {
+	if hasRightSibling {
 		if err := n.loadChildren(i + 1); err != nil {
 			return fmt.Errorf("failed to delete key: %w", err)
 		}
 	}
 
-	if isLeft && n.needsLeftRedistribution(i) {
+	if hasLeftSibling && n.needsLeftRedistribution(i) {
 		if err := n.leftRedistribution(i); err != nil {
 			return fmt.Errorf("failed delete key: %w", err)
 		}
-	} else if isRight && n.needsRightRedistribution(i) {
+	} else if hasRightSibling && n.needsRightRedistribution(i) {
 		if err := n.rightRedistribution(i); err != nil {
 			return fmt.Errorf("failed to delete key: %w", err)
 		}
-	} else if isLeft {
+	} else if hasLeftSibling {
 		if err := n.mergeWithLeft(i); err != nil {
 			return fmt.Errorf("failed to delete key: %w", err)
 		}
-	} else if isRight {
+	} else if hasRightSibling {
 		if err := n.mergeWithRight(i); err != nil {
 			return fmt.Errorf("failed to delete key: %w", err)
 		}

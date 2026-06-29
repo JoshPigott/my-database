@@ -10,12 +10,12 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	var n *node
 	offset := 0
 	pageBytes, err := pages.ReadBytes(pageSize, offset, pageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to node's page: %w", err)
+	}
 	// Free page; Node was deleted
 	if pageBytes[pageStart] == 0 {
 		return nil, errors.New("invalid page node")
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to node's page: %w", err)
 	}
 	metadataBytes := pageBytes[pageStart:pageMetadataSize]
 	pageMetadata := formatPageMetadata(metadataBytes)
@@ -32,7 +32,7 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 
 func (n *node) writeNodeToPage() error {
 	delete(n.pages.pageIDToNode, n.pageID)
-	if n.leaf == true {
+	if n.leaf {
 		if err := n.writeLeafNode(); err != nil {
 			return fmt.Errorf("failed to write node to page")
 		}

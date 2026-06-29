@@ -139,8 +139,8 @@ func getSlotBuffer(newDataOffset uint16, dataLength uint16, flag uint16) []byte 
 // Writes the len and value of key and the value into a buffer
 func getDataBuffer(key string, value string, dataSize int) []byte {
 	buf := make([]byte, dataSize)
-	var keyLength uint16 = uint16(len(key))
-	var valueLength uint16 = uint16(len(value))
+	keyLength := uint16(len(key))
+	valueLength := uint16(len(value))
 
 	binary.BigEndian.PutUint16(buf[0:2], keyLength)
 	binary.BigEndian.PutUint16(buf[2:4], valueLength)
@@ -153,14 +153,13 @@ func getDataBuffer(key string, value string, dataSize int) []byte {
 
 // Get next data page to write to and returns new data page info
 func (pages *Pages) ensureWritablePage() (pageMetadata, uint32, error) {
-	var pageMetadata pageMetadata
 	// create a new data page
 	pageID, err := pages.create(DataPage)
 	if err != nil {
-		return pageMetadata, pageID, fmt.Errorf("failed to add to page %w", err)
+		return pageMetadata{}, pageID, fmt.Errorf("failed to add to page %w", err)
 	}
 	// Compute new page values
-	pageMetadata, err = pages.readPageMetadata(pageID)
+	pageMetadata, err := pages.readPageMetadata(pageID)
 	if err != nil {
 		return pageMetadata, pageID, fmt.Errorf("failed to get metadata: %w", err)
 	}

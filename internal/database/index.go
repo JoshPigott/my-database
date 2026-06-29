@@ -65,7 +65,7 @@ func (pages *Pages) getTree() (*BTree, error) {
 		return nil, fmt.Errorf("failed to get root page: %w", err)
 	}
 
-	if isRoot == false {
+	if !isRoot {
 		t, err = pages.NewBTree()
 		if err != nil {
 			return nil, err

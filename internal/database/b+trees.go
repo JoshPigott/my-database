@@ -42,13 +42,13 @@ func (pages *Pages) NewBTree() (*BTree, error) {
 func (pages *Pages) newNode(isLeaf bool) (*node, error) {
 	var pageID uint32
 	var err error
-	if isLeaf == true {
+	if isLeaf {
 		pageID, err = pages.create(LeafPage)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new leaf node: %w", err)
 		}
 	} else {
-		pageID, err = pages.create(LeafPage)
+		pageID, err = pages.create(InternalPage)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new leaf node: %w", err)
 		}
@@ -260,7 +260,7 @@ func (n *node) split() (*string, *node, *node, error) {
 	}
 
 	// Updates keys
-	if n.leaf == false {
+	if !n.leaf {
 		right.keys = make([]string, len(n.keys[rightStart:]))
 		copy(right.keys, n.keys[rightStart:])
 	} else {
