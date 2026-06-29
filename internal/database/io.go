@@ -14,15 +14,20 @@ func (pages *Pages) read(pageID uint32) ([]record, error) {
 }
 
 // Read page to get the data in a data page
-func (pages *Pages) readFull(pageID uint32) ([]byte, []slot, []record, error) { // Ugly
+func (pages *Pages) readFull(pageID uint32) ([]byte, []slot, []record, error) {
+	// get offset
 	pageOffSet := getPageOffset(pageID)
 	pageBytes := make([]byte, pageSize)
 	if _, err := pages.File.Seek(pageOffSet, io.SeekStart); err != nil {
 		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed to read file: %w", err)
 	}
+
+	// read data
 	if _, err := pages.File.Read(pageBytes); err != nil {
 		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed to read file: %w", err)
 	}
+
+	// format data
 	pageMetadata := formatPageMetadata(pageBytes)
 	if pageMetadata.pageType != DataPage {
 		return []byte{}, []slot{}, []record{}, ErrNotDataPage

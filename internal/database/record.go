@@ -56,7 +56,7 @@ func readData(pageBytes []byte, slots []slot) []record {
 }
 
 // Gets key length from the page bytes
-func getKeyLength(dataBytes []byte) int { // Right now I am not getting key length
+func getKeyLength(dataBytes []byte) int {
 	keyLengthBytes := dataBytes[0:keyLenStorageSize]
 	keyLength := int(binary.BigEndian.Uint16(keyLengthBytes))
 	return keyLength
@@ -112,7 +112,7 @@ func (pages *Pages) selectValue(keyLocation *KeyLocation) (string, string, error
 }
 
 // Used to slecet than or equal to a boundary key
-func (db *DB) getMoreThan(boundaryKey string, equalTo bool) ([]data, error) { // Maybe
+func (db *DB) getMoreThan(boundaryKey string, equalTo bool) ([]data, error) {
 	var selectedData []data
 	n, _, err := db.T.findNode(boundaryKey)
 	if err != nil {

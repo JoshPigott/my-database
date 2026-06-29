@@ -337,25 +337,6 @@ func (n *node) findChild(key string) (*node, int, error) {
 	return childNode, len(n.keys), nil
 }
 
-// Prints out the btree structure for debugging purposes
-func (t *BTree) CheckStructure(number int) {
-	fmt.Println("Number:", number)
-	fmt.Println("t.root.keys:", t.root.keys)
-	for i := range len(t.root.children) {
-		stringCode := fmt.Sprintf("t.root.children[%d].keys:", i)
-		fmt.Println(stringCode, t.root.children[i].keys)
-		for j := range len(t.root.children[i].children) {
-			stringCode := fmt.Sprintf("t.root.children[%d].children[%d].keys:", i, j)
-			fmt.Println(stringCode, t.root.children[i].children[j].keys)
-			for k := range len(t.root.children[i].children[j].children) {
-				stringCode := fmt.Sprintf("t.root.children[%d].children[%d].children[%d].keys:", i, j, k)
-				fmt.Println(stringCode, t.root.children[i].children[j].children[k].keys)
-			}
-		}
-	}
-	println()
-}
-
 // Used for debugging
 func (t *BTree) PrintLinkedList() {
 	n := t.root
@@ -374,25 +355,5 @@ func (t *BTree) PrintLinkedList() {
 		default:
 			n = nil
 		}
-	}
-}
-
-// made this maybe for debugging
-func PrintOutNode(n *node) {
-	fmt.Println()
-	fmt.Println("n.pageID:", n.pageID)
-	fmt.Println("n.leaf:", n.leaf)
-	fmt.Println("n.keys:", n.keys)
-
-	if n.leaf == true {
-		fmt.Println("n.Next:", n.Next)
-		fmt.Println("n.NextID:", n.NextID)
-		for _, keyLocation := range n.keyLocations {
-			fmt.Println("pageID:", keyLocation.PageID)
-			fmt.Println("slotID:", keyLocation.SlotID)
-		}
-	} else {
-		fmt.Println("n.children:", n.children)
-		fmt.Println("n.childPageIDs:", n.childPageIDs)
 	}
 }

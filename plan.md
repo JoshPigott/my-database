@@ -30,7 +30,7 @@ https://chatgpt.com/share/69f99c49-4b50-8323-9ccc-19574937e236
 
 Basically 
 Phase 1 — Log-based key-value store
-Phase 2 — Persistence + crash recovery  (here)
+Phase 2 — Persistence + crash recovery 
 Phase 3 — Page-based storage
 Phase 4 — B-Tree index
 Phase 5 — Tables
@@ -48,16 +48,11 @@ https://www.youtube.com/watch?v=09E-tVAUqQw&pp=ygURYisgdHJlZSBleHBsYWluZWQ%3D
 To implement B trees 
  
 
-Just slowly try and get stuff to work like the btree pages
-Then do a big refactor
-Do a good readme
+Plan
+Readme
+Next thing to work on
 
 
 Do in the refactor
-Quite a few of the funcation are just too long
-I should also just look for ugly code
 How silmar to mergre with right like will need to look at that
-remove left over comments
-I just doing the funcation splits not reabltity ones
 
-Quite a few of the funcation are just too long

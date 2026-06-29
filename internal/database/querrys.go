@@ -181,7 +181,7 @@ func (db *DB) Select(key string) (string, bool, error) {
 	return value, true, nil
 }
 
-// Used like where x > 5.
+// All you do to range querries selecting a range of data
 func (db *DB) SelectWhere(condition MathConditions, boundaryKey string) ([]data, error) {
 	var selectedData []data
 	var err error

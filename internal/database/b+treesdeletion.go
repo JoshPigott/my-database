@@ -80,11 +80,11 @@ func (n *node) fixUnderflow(i int) error {
 	}
 
 	if isLeft && n.needsLeftRedistribution(i) {
-		if err := n.redistribution(i, true); err != nil {
+		if err := n.leftRedistribution(i); err != nil {
 			return fmt.Errorf("failed delete key: %w", err)
 		}
 	} else if isRight && n.needsRightRedistribution(i) {
-		if err := n.redistribution(i, false); err != nil {
+		if err := n.rightRedistribution(i); err != nil {
 			return fmt.Errorf("failed to delete key: %w", err)
 		}
 	} else if isLeft {
@@ -99,11 +99,19 @@ func (n *node) fixUnderflow(i int) error {
 	return nil
 }
 
+func (n *node) leftRedistribution(i int) error {
+	return n.redistribution(i, true)
+}
+
+func (n *node) rightRedistribution(i int) error {
+	return n.redistribution(i, false)
+}
+
 // Rewrites child and right child to have the a more even split of data
-func (n *node) redistribution(i int, isLeftRedistribution bool) error {
+func (n *node) redistribution(i int, withLeft bool) error {
 	var l *node
 	var r *node
-	if isLeftRedistribution {
+	if withLeft {
 		l = n.children[i-1]
 		r = n.children[i]
 	} else {
@@ -113,10 +121,10 @@ func (n *node) redistribution(i int, isLeftRedistribution bool) error {
 
 	keys := make([]string, 0, len(l.keys)+len(r.keys))
 	keys = append(keys, l.keys...)
-	if !l.leaf && isLeftRedistribution {
+	if !l.leaf && withLeft {
 		keys = append(keys, n.keys[i-1])
 	}
-	if !l.leaf && !isLeftRedistribution {
+	if !l.leaf && !withLeft {
 		keys = append(keys, n.keys[i])
 	}
 	keys = append(keys, r.keys...)
@@ -131,7 +139,7 @@ func (n *node) redistribution(i int, isLeftRedistribution bool) error {
 		l.keys = keys[:j]
 		r.keys = keys[j+1:]
 	}
-	if isLeftRedistribution {
+	if withLeft {
 		n.keys[i-1] = keys[j]
 	} else {
 		n.keys[i] = keys[j]
@@ -180,61 +188,31 @@ func (n *node) redistribution(i int, isLeftRedistribution bool) error {
 }
 
 // Merges child node with their left sibling node
-func (n *node) mergeWithLeft(i int) error { // How silmar to mergre with right like will need to look at that
-	left := n.children[i-1]
-
-	// Delete separator key
-	separatorKey := n.keys[i-1]
-	for j, keyVal := range n.keys {
-		if keyVal == separatorKey {
-			n.keys = append(n.keys[:j], n.keys[j+1:]...)
-			break
-		}
-	}
-
-	// Updates keys and key location
-	internalNode := n.children[i-1].leaf == false
-	if internalNode {
-		left.keys = append(left.keys, separatorKey)
-		left.keys = append(left.keys, n.children[i].keys...)
-	} else {
-		left.keys = append(left.keys, n.children[i].keys...)
-		left.keyLocations = append(left.keyLocations, n.children[i].keyLocations...)
-	}
-
-	// Updates linked list
-	if left.leaf {
-		left.Next = n.children[i].Next
-		left.NextID = n.children[i].NextID
-	}
-
-	// Updates children
-	merged := n.children[i]
-	left.children = append(left.children, n.children[i].children...)
-	n.children = append(n.children[:i], n.children[i+1:]...)
-
-	left.childPageIDs = append(left.childPageIDs, merged.childPageIDs...)
-	n.childPageIDs = append(n.childPageIDs[:i], n.childPageIDs[i+1:]...)
-
-	// Write nodes to disk
-	if err := n.writeNodeToPage(); err != nil {
-		return fmt.Errorf("failed to mergre with left: %w", err)
-	}
-	if err := left.writeNodeToPage(); err != nil {
-		return fmt.Errorf("failed to mergre with left: %w", err)
-	}
-	if err := merged.deleteNodePage(); err != nil {
-		return fmt.Errorf("failed to mergre with left: %w", err)
-	}
-	return nil
+func (n *node) mergeWithLeft(i int) error {
+	return n.merge(i, true)
 }
 
 // Merges child node with their right sibling node
 func (n *node) mergeWithRight(i int) error {
-	right := n.children[i+1]
+	return n.merge(i, false)
+}
 
-	// Delete separator key
-	separatorKey := n.keys[i]
+// Mergre two sibling node into one
+func (n *node) merge(i int, withLeft bool) error {
+	var l *node
+	var r *node
+	var separatorKey string
+
+	if withLeft {
+		l = n.children[i-1]
+		r = n.children[i]
+		separatorKey = n.keys[i-1]
+	} else {
+		l = n.children[i]
+		r = n.children[i+1]
+		separatorKey = n.keys[i]
+	}
+
 	for j, keyVal := range n.keys {
 		if keyVal == separatorKey {
 			n.keys = append(n.keys[:j], n.keys[j+1:]...)
@@ -243,37 +221,42 @@ func (n *node) mergeWithRight(i int) error {
 	}
 
 	// Updates keys and key location
-	internalNode := n.children[i].leaf == false
-	if internalNode {
-		n.children[i].keys = append(n.children[i].keys, separatorKey)
-		n.children[i].keys = append(n.children[i].keys, right.keys...)
+	if l.leaf {
+		l.keys = append(l.keys, r.keys...)
+		l.keyLocations = append(l.keyLocations, r.keyLocations...)
 	} else {
-		n.children[i].keys = append(n.children[i].keys, right.keys...)
-		n.children[i].keyLocations = append(n.children[i].keyLocations, right.keyLocations...)
+		l.keys = append(l.keys, separatorKey)
+		l.keys = append(l.keys, r.keys...)
 	}
 
 	// Updates linked list
-	if n.children[i].leaf {
-		n.children[i].Next = right.Next
-		n.children[i].NextID = right.NextID
+	if l.leaf {
+		l.Next = r.Next
+		l.NextID = r.NextID
 	}
 
 	// Updates children
-	n.children[i].children = append(n.children[i].children, right.children...)
-	n.children[i].childPageIDs = append(n.children[i].childPageIDs, right.childPageIDs...)
-	// Removes right
-	n.children = append(n.children[:i+1], n.children[i+2:]...)
-	n.childPageIDs = append(n.childPageIDs[:i+1], n.childPageIDs[i+2:]...)
+	l.children = append(l.children, r.children...)
+	l.childPageIDs = append(l.childPageIDs, r.childPageIDs...)
+
+	// Removes pointer from parent to right node
+	if withLeft {
+		n.children = append(n.children[:i], n.children[i+1:]...)
+		n.childPageIDs = append(n.childPageIDs[:i], n.childPageIDs[i+1:]...)
+	} else {
+		n.children = append(n.children[:i+1], n.children[i+2:]...)
+		n.childPageIDs = append(n.childPageIDs[:i+1], n.childPageIDs[i+2:]...)
+	}
 
 	// Write nodes to disk
 	if err := n.writeNodeToPage(); err != nil {
-		return fmt.Errorf("failed to merge with right: %w", err)
+		return fmt.Errorf("failed to merge: %w", err)
 	}
-	if err := n.children[i].writeNodeToPage(); err != nil {
-		return fmt.Errorf("failed to merge with right: %w", err)
+	if err := l.writeNodeToPage(); err != nil {
+		return fmt.Errorf("failed to merge: %w", err)
 	}
-	if err := right.deleteNodePage(); err != nil {
-		return fmt.Errorf("failed to merge with right: %w", err)
+	if err := r.deleteNodePage(); err != nil {
+		return fmt.Errorf("failed to merge: %w", err)
 	}
 	return nil
 }

@@ -148,7 +148,7 @@ func (n *node) writeLeafNode() error {
 
 	for i, key := range n.keys {
 		keyLocation := *n.keyLocations[i]
-		offset = addLeafKey(&buf, keyLocation.PageID, keyLocation.SlotID, offset, key)
+		offset = addLeafKey(buf, keyLocation.PageID, keyLocation.SlotID, offset, key)
 	}
 
 	pageMetadata := pageMetadata{
@@ -172,7 +172,7 @@ func (n *node) writeInternalNode() error {
 	offset := pageMetadataSize
 
 	for i, key := range n.keys {
-		offset = addInternalKey(&buf, offset, key, n.childPageIDs[i])
+		offset = addInternalKey(buf, offset, key, n.childPageIDs[i])
 	}
 	// Number of children is one great then number of keys
 	binary.BigEndian.PutUint32(buf[offset:offset+pageIDSize], n.childPageIDs[len(n.childPageIDs)-1])
@@ -193,38 +193,38 @@ func (n *node) writeInternalNode() error {
 	return nil
 }
 
-func addLeafKey(buf *[]byte, pageID uint32, slotID uint16, offset int, key string) int {
+func addLeafKey(buf []byte, pageID uint32, slotID uint16, offset int, key string) int {
 	// Key len
-	binary.BigEndian.PutUint16((*buf)[offset:offset+keyLenStorageSize], uint16(len(key)))
+	binary.BigEndian.PutUint16(buf[offset:offset+keyLenStorageSize], uint16(len(key)))
 	offset += keyLenStorageSize
 
 	// Key
 	keyBytes := []byte(key)
-	copy((*buf)[offset:offset+len(key)], keyBytes)
+	copy(buf[offset:offset+len(key)], keyBytes)
 	offset += len(key)
 
 	// PageID
-	binary.BigEndian.PutUint32((*buf)[offset:offset+pageIDSize], pageID)
+	binary.BigEndian.PutUint32(buf[offset:offset+pageIDSize], pageID)
 	offset += pageIDSize
 
 	// SlotID
-	binary.BigEndian.PutUint16((*buf)[offset:offset+slotIDSize], slotID)
+	binary.BigEndian.PutUint16(buf[offset:offset+slotIDSize], slotID)
 	offset += slotIDSize
 	return offset
 }
 
-func addInternalKey(buf *[]byte, offset int, key string, childPageID uint32) int {
+func addInternalKey(buf []byte, offset int, key string, childPageID uint32) int {
 	// Child node page
-	binary.BigEndian.PutUint32((*buf)[offset:offset+pageIDSize], childPageID)
+	binary.BigEndian.PutUint32(buf[offset:offset+pageIDSize], childPageID)
 	offset += pageIDSize
 
 	// Key len
-	binary.BigEndian.PutUint16((*buf)[offset:offset+keyLenStorageSize], uint16(len(key)))
+	binary.BigEndian.PutUint16(buf[offset:offset+keyLenStorageSize], uint16(len(key)))
 	offset += keyLenStorageSize
 
 	// Key
 	keyBytes := []byte(key)
-	copy((*buf)[offset:offset+len(key)], keyBytes)
+	copy(buf[offset:offset+len(key)], keyBytes)
 	offset += len(key)
 	return offset
 }
