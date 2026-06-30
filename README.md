@@ -22,28 +22,23 @@ Each page size is 4096 bytes or 4KB
 
 ![slot structure](/screenshots/slot.png)
 
-**Root page struture**
-
-**Metadata page struture**
-
-**Routing page struture**
-- The point of this page is not link key to slotID to eliminate
- the need for seraching the page/s to find a where a key slot is
+**Page metadata**
 - metadata
-    - page type (MetadataPage)
+    - page type 
+    - page id
     - numEntries 
     - freeSpaceStart
     - freeSpaceEnd
-- routes
-    - Note this may be 100% atm
-    - [boundaryKey] [pageID] [slotID]
 
-**Data / leaf node struture**
-- metadata
-    - page type (DataPage)
-    - numEntries 
-    - freeSpaceStart
-    - freeSpaceEnd
+**Database metadata page struture**
+- page metadata
+- page id of b+tree root 
+- total number of pages
+- next free page
+- page id of last used data page
+
+**Data pages struture**
+- page metadata
 - slots
     - Note this starts at the bottom of the metadata and fills downwards
     - The point of the slot is to store data about how the data is store and if it relevant
@@ -56,8 +51,76 @@ Each page size is 4096 bytes or 4KB
     - Note this start of the page and fills upwards
     - [keyLength] [valueLength] [key] [value]
 
-**Node disk strutrue leaf**
-- metadata
+
+## Free Pages
+- Pages with type `0` are free (unallocated).
+- Free pages are stored as a singly linked list.
+- Each free page stores the `nextFreePageID`.
+- The head of the free page linked list is stored in database metadata.
+- Insert/delete at head of linked list → O(1).
+
+## B+ Tree Features & Structure
+
+### Overview
+- A B+ tree stores many keys per node, reducing tree height and disk reads.
+- All operations (search, insert, delete) are **O(log n)** due to shallow depth.
+- Internal nodes store **only separator keys** (no data).
+- Leaf nodes store **all actual data pointers** (`pageID` + `slotID`) in `keyLocations`.
+- Leaf nodes are linked by `pageID` as a linked list for fast range queries.
+- Tree has a single **root node**, linked store in database metadata.
+- Each node maps to a **disk page** (one node = one page).
+
+### Key and node ordering
+- Internal nodes use separator keys to route searches:
+  - Left child: keys `< separator`
+  - Right child: keys `>= separator`
+- Key comparison uses `strings.Compare(a, b)` (lexicographic / ASCII order).
+- All keys are sorted inside each node
+
+---
+
+## Operations / features
+
+### `Insert`
+- Start at root → descend to correct leaf node.
+- Insert key in sorted order.
+- If node overflows:
+  - Split node into two.
+  - Promote separator key (usually first key of right node) to parent.
+- Parent may recursively split (can propagate to root).
+
+---
+
+### Search `Select`
+- Start at root.
+- Traverse internal nodes using separator keys.
+- Reach leaf node.
+- Find key → get `(pageID, slot)`.
+- Fetch data from disk in data page and return it.
+
+---
+
+### Range Query `SelectWhere`
+- Uses linked leaf nodes.
+- `>` or `>=`: find first matching leaf, scan right through linked list.
+- `<` or `<=`: start at leftmost leaf, scan until boundary key.
+
+---
+
+### Delete
+- Find key via normal traversal.
+- Remove key from leaf node.
+- Handle underflow if node has too few keys:
+  - `redistribution` with sibling, or
+  - `merge` with sibling node.
+- Update parent separator keys if structure changes.
+- When `merge` right node get delete and page becomes free page
+
+---
+
+### Node page structure
+**Leaf node**
+- page metadata
 - Next leaf pageID
 - key 0 length
 - key 0 
@@ -68,9 +131,8 @@ Each page size is 4096 bytes or 4KB
 - PageID (where value 1 is)
 - slotID (where value 1 is)
 
-
-**Node disk strutrue internal**
-- metadata
+**Internal node**
+- page metadata
 - child 0 PageID 
 - key 0 length
 - key 0
@@ -79,4 +141,9 @@ Each page size is 4096 bytes or 4KB
 - key 1
 - child 2 PageID
 
-note duplicates keys cannot be added to the tree will regret second keys
+
+## Know promblems 
+- duplicates keys cannot be added to the b+tree will regret second key
+
+## Notes 
+- Some tests where maybe by AI for increased development speed 
