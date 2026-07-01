@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 )
 
@@ -31,12 +30,9 @@ type metadata struct {
 
 // Reads metadata page and return the database metadata in a metadata struct
 func (pages *Pages) readDBMetadata() (metadata, error) {
-	metadataBytes := make([]byte, metadataSize)
-	dbMetadataStart := int64(pageMetadataSize)
-	if _, err := pages.File.Seek(dbMetadataStart, io.SeekStart); err != nil {
-		return metadata{}, fmt.Errorf("failed to seek metadata start: %w", err)
-	}
-	if _, err := pages.File.Read(metadataBytes); err != nil {
+	dbMetadataStart := pageMetadataSize
+	metadataBytes, err := pages.ReadBytes(metadataSize, dbMetadataStart, metadataPageID)
+	if err != nil {
 		return metadata{}, fmt.Errorf("failed to read metadata page: %w", err)
 	}
 	metadata := formatDBMetadata(metadataBytes)

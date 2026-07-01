@@ -111,7 +111,7 @@ func (db *DB) Delete(key string) error {
 		if pageMetadata.pageType != DataPage {
 			continue
 		}
-		records, err := db.Pages.read(uint32(pageID))
+		records, err := db.Pages.readDataPage(uint32(pageID))
 		if err != nil {
 			return fmt.Errorf("failed to read page: %w", err)
 		}
@@ -144,7 +144,7 @@ func (db *DB) SelectAll() (map[string]string, error) {
 	}
 	// Loops over each page
 	for pageID := 1; pageID <= numOfPagesToRead; pageID++ {
-		records, err := db.Pages.read(uint32(pageID))
+		records, err := db.Pages.readDataPage(uint32(pageID))
 		if errors.Is(err, ErrNotDataPage) {
 			continue
 		}

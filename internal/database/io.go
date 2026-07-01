@@ -8,132 +8,160 @@ import (
 
 var ErrNotDataPage = errors.New("failed to read page due to not data page")
 
-func (pages *Pages) read(pageID uint32) ([]record, error) {
-	_, _, dataRecords, err := pages.readFull(pageID)
-	return dataRecords, err
-}
-
-// Read page to get the data in a data page
-func (pages *Pages) readFull(pageID uint32) ([]byte, []slot, []record, error) {
-	// get offset
-	pageOffSet := getPageOffset(pageID)
-	pageBytes := make([]byte, pageSize)
-	if _, err := pages.File.Seek(pageOffSet, io.SeekStart); err != nil {
-		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed seek to page offset: %w", err)
-	}
-
-	// read data
-	if _, err := pages.File.Read(pageBytes); err != nil {
-		return []byte{}, []slot{}, []record{}, fmt.Errorf("failed to read page bytes: %w", err)
-	}
-
-	// format data
-	pageMetadata := formatPageMetadata(pageBytes)
-	if pageMetadata.pageType != DataPage {
-		return []byte{}, []slot{}, []record{}, ErrNotDataPage
-	}
-	slots := formatSlots(pageBytes, pageMetadata)
-	dataRecords := readData(pageBytes, slots)
-	return pageBytes, slots, dataRecords, nil
-}
-
+// Read pages and get bytes from page
 func (pages *Pages) ReadBytes(size int, offset int, pageID uint32) ([]byte, error) {
-	bytes := make([]byte, size)
-	pageOffSet := getPageOffset(pageID)
-	totalOffset := int64(offset) + pageOffSet
-	if _, err := pages.File.Seek(totalOffset, io.SeekStart); err != nil {
+	pageBytes := pages.checkCache(pageID)
+	if pageBytes != nil {
+		return pageBytes[offset : offset+size], nil
+	}
+
+	pageBytes = make([]byte, pageSize)
+	pageOffset := getPageOffset(pageID)
+	if _, err := pages.File.Seek(pageOffset, io.SeekStart); err != nil {
 		return []byte{}, fmt.Errorf("failed to seek to offset: %w", err)
 	}
-	if _, err := pages.File.Read(bytes); err != nil {
+	if _, err := pages.File.Read(pageBytes); err != nil {
 		return []byte{}, fmt.Errorf("failed to read bytes: %w", err)
 	}
-	return bytes, nil
-}
-
-// Write new page at the end of the file
-func (pages *Pages) write(bytes []byte, pageID uint32, pageType PageType) error {
-	offset := getPageOffset(pageID)
-	info, err := pages.File.Stat()
-	if err != nil {
-		return fmt.Errorf("failed to get file size: %w", err)
-	}
-	if pageType == MetadataPage && info.Size() != 0 {
-		return errors.New("failed to add metadata page: metadata already made")
-	}
-	if _, err := pages.File.Seek(offset, io.SeekStart); err != nil {
-		return fmt.Errorf("failed to seek to page offset: %w", err)
-	}
-	if _, err := pages.File.Write(bytes); err != nil {
-		return fmt.Errorf("failed to write bytes to file: %w", err)
-	}
-	if err := pages.File.Sync(); err != nil {
-		return fmt.Errorf("failed to sync file: %w", err)
-	}
-	return nil
+	pages.updateCache(pageID, pageBytes)
+	return pageBytes[offset : offset+size], nil
 }
 
 // Open up database writes bytes and syncs bytes
 func (pages *Pages) writeBytes(bytes []byte, offset int, pageID uint32) error {
-	pageOffSet := getPageOffset(pageID)
-	totalOffset := int64(offset) + pageOffSet
+	var pageBytes []byte
+	if len(bytes)+offset > pageSize {
+		return errors.New("more one than one page")
+	}
+	pageOffset := getPageOffset(pageID)
+	if len(bytes) == pageSize {
+		pageBytes = bytes
+	} else {
+		pageBytes = pages.checkCache(pageID)
+		if pageBytes == nil {
+			pageBytes = make([]byte, pageSize)
+			if _, err := pages.File.Seek(pageOffset, io.SeekStart); err != nil {
+				return fmt.Errorf("failed to seek to offset: %w", err)
+			}
+			if _, err := pages.File.Read(pageBytes); err != nil {
+				return fmt.Errorf("failed to read page bytes: %w", err)
+			}
+		}
+		copy(pageBytes[offset:offset+len(bytes)], bytes)
+	}
 
-	// I want to read the bytes before
-	if _, err := pages.File.Seek(totalOffset, io.SeekStart); err != nil {
+	if _, err := pages.File.Seek(pageOffset, io.SeekStart); err != nil {
 		return fmt.Errorf("failed to seek to offset: %w", err)
 	}
-	if _, err := pages.File.Write(bytes); err != nil {
+	if _, err := pages.File.Write(pageBytes); err != nil {
 		return fmt.Errorf("failed to write bytes: %w", err)
 	}
 	if err := pages.File.Sync(); err != nil {
 		return fmt.Errorf("failed to sync file: %w", err)
 	}
+	pages.updateCache(pageID, pageBytes)
 	return nil
+}
+
+// Check cache to get page bytes from memory
+func (pages *Pages) checkCache(pageID uint32) []byte {
+	page, found := pages.cache.items[pageID]
+	if !found {
+		return nil
+	}
+	pages.moveToFront(page)
+	return page.bytes
+}
+
+// Adds or update pages cache; bytes and linked list
+func (pages *Pages) updateCache(pageID uint32, pageBytes []byte) {
+	page, found := pages.cache.items[pageID]
+	if found {
+		pages.moveToFront(page)
+		return
+	}
+	// Update linked list
+	oldHead := pages.cache.head
+	page = &Page{
+		id:    pageID,
+		bytes: pageBytes,
+		prev:  oldHead,
+	}
+	if oldHead == nil {
+		pages.cache.tail = page
+	} else {
+		oldHead.next = page
+	}
+	pages.cache.head = page
+
+	// Update page map
+	pages.cache.items[pageID] = page
+
+	// Free memory
+	if len(pages.cache.items) > pages.cache.capacity {
+		oldTail := pages.cache.tail
+		newTail := oldTail.next
+		oldTail.next = nil
+		pages.cache.tail = newTail
+		if newTail != nil {
+			newTail.prev = nil
+		} else {
+			pages.cache.head = nil
+		}
+
+		delete(pages.cache.items, oldTail.id)
+	}
+}
+
+// Move page up to the front now being last used page
+func (pages *Pages) moveToFront(page *Page) {
+	if page == pages.cache.head {
+		return
+	}
+	// Update linked list
+	if pages.cache.tail == page {
+		pages.cache.tail = page.next
+	}
+
+	if page.next != nil {
+		page.next.prev = page.prev
+	}
+	if page.prev != nil {
+		page.prev.next = page.next
+	}
+
+	oldHead := pages.cache.head
+	page.prev = oldHead
+	page.next = nil
+	oldHead.next = page
+	pages.cache.head = page
 }
 
 // Reads page metadata (I will need to put what page later on)
 func (pages *Pages) readPageMetadata(pageID uint32) (pageMetadata, error) {
-	pageOffSet := getPageOffset(pageID)
-	metadataBytes := make([]byte, pageMetadataSize)
-	if _, err := pages.File.Seek(pageOffSet, io.SeekStart); err != nil {
-		return pageMetadata{}, fmt.Errorf("failed to seek to page offset: %w", err)
-	}
-	if _, err := pages.File.Read(metadataBytes); err != nil {
-		return pageMetadata{}, fmt.Errorf("failed to read page metadata bytes: %w", err)
+	metadataBytes, err := pages.ReadBytes(pageMetadataSize, pageStart, pageID)
+	if err != nil {
+		return pageMetadata{}, fmt.Errorf("failed to read page metadata: %w", err)
 	}
 	pageMetadata := formatPageMetadata(metadataBytes)
 	return pageMetadata, nil
 }
 
-// Reads a particular slot
-func (pages *Pages) readSlot(pageID uint32, slotID uint16) ([]byte, error) {
-	slotBytes := make([]byte, slotSize)
-
-	pageOffSet := getPageOffset(pageID)
-	slotOffset := pageMetadataSize + (int64(slotID) * int64(slotSize))
-	totalOffset := pageOffSet + slotOffset
-
-	if _, err := pages.File.Seek(totalOffset, io.SeekStart); err != nil {
-		return []byte{}, fmt.Errorf("failed to seek to slot offset: %w", err)
+// Read page to get the data in a data page
+func (pages *Pages) readDataPage(pageID uint32) ([]record, error) {
+	pageBytes, err := pages.ReadBytes(pageSize, pageStart, pageID)
+	if err != nil {
+		return []record{}, fmt.Errorf("failed to read bytes: %w", err)
 	}
-	if _, err := pages.File.Read(slotBytes); err != nil {
-		return []byte{}, fmt.Errorf("failed to read slot bytes: %w", err)
-	}
-	return slotBytes, nil
-}
 
-// Gets bytes of a particular entry of data
-func (pages *Pages) readData(slot slot, pageID uint32) ([]byte, error) {
-	dataBytes := make([]byte, slot.length)
-	pageOffSet := getPageOffset(pageID)
-	totalOffset := pageOffSet + int64(slot.offset)
-
-	if _, err := pages.File.Seek(totalOffset, io.SeekStart); err != nil {
-		return []byte{}, fmt.Errorf("failed to seek to start of data: %w", err)
+	// format data
+	pageMetadata := formatPageMetadata(pageBytes)
+	if pageMetadata.pageType != DataPage {
+		return []record{}, ErrNotDataPage
 	}
-	if _, err := pages.File.Read(dataBytes); err != nil {
-		return []byte{}, fmt.Errorf("failed to read entry: %w", err)
-	}
-	return dataBytes, nil
+	slots := formatSlots(pageBytes, pageMetadata)
+	dataRecords := formatData(pageBytes, slots)
+	return dataRecords, nil
 }
 
 func getPageOffset(pageID uint32) int64 {
