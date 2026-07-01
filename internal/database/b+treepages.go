@@ -47,7 +47,6 @@ func (n *node) writeNodeToPage() error {
 // Turns node page into free page
 func (n *node) deleteNodePage() error {
 	buf := make([]byte, pageSize)
-
 	metadata, err := n.pages.readDBMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to get database metadata: %w", err)

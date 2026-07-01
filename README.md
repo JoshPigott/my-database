@@ -144,6 +144,7 @@ Each page size is 4096 bytes or 4KB
 
 ## Know promblems 
 - duplicates keys cannot be added to the b+tree will regret second key
+- Reading of slots and data could just be one read but they are two atm
 
 ## Notes 
 - Some tests where maybe by AI for increased development speed 

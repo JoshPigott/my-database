@@ -72,7 +72,7 @@ func (pages *Pages) selectPageId() (uint32, metadata, error) {
 
 // Write new page adding default metadata
 func (pages *Pages) writeNewPage(pageID uint32, pageType PageType) error {
-	bytes := make([]byte, pageSize)
+	pageBytes := make([]byte, pageSize)
 
 	pageMetadata := pageMetadata{
 		pageType:       pageType,
@@ -83,12 +83,18 @@ func (pages *Pages) writeNewPage(pageID uint32, pageType PageType) error {
 	}
 
 	buf := createMetadataBuffer(pageMetadata)
-	copy(bytes, buf)
+	copy(pageBytes, buf)
 
-	if err := pages.write(bytes, pageID, pageType); err != nil {
-		return fmt.Errorf("failed to write page: %w", err)
+	info, err := pages.File.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get file size: %w", err)
 	}
-
+	if pageType == MetadataPage && info.Size() != 0 {
+		return errors.New("failed to add metadata page: metadata already made")
+	}
+	if err := pages.writeBytes(pageBytes, pageStart, pageID); err != nil {
+		return fmt.Errorf("failed to write page bytes: %w", err)
+	}
 	return nil
 }
 

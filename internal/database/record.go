@@ -39,7 +39,7 @@ func readEntry(dataBytes []byte) data {
 }
 
 // Reads a page full of data
-func readData(pageBytes []byte, slots []slot) []record {
+func formatData(pageBytes []byte, slots []slot) []record {
 	dataRecords := []record{}
 	for i, slot := range slots {
 		dataStart := slot.offset
@@ -98,12 +98,16 @@ func getDataOffset(freeSpace int, dataSize int, numEntries uint16) int {
 
 // Get the value with a give key location
 func (pages *Pages) selectValue(keyLocation *KeyLocation) (string, string, error) {
-	slotBytes, err := pages.readSlot(keyLocation.PageID, keyLocation.SlotID)
+	// get slot
+	slotOffset := pageMetadataSize + (int(keyLocation.SlotID) * slotSize)
+	slotBytes, err := pages.ReadBytes(slotSize, slotOffset, keyLocation.PageID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read slot: %w", err)
 	}
 	formatedSlot := formatSlot(slotBytes)
-	dataBytes, err := pages.readData(formatedSlot, keyLocation.PageID)
+
+	// Get data
+	dataBytes, err := pages.ReadBytes(int(formatedSlot.length), int(formatedSlot.offset), keyLocation.PageID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read data: %w", err)
 	}

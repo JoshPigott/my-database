@@ -40,3 +40,9 @@ Phase 8 — Indexes
 
 Readme
 Next thing to work on
+
+Lets make data page cache
+I think I would need a linked list of the last time a page was used
+moveToFront for cache like exct funcation
+
+I feel like the DB and Page struct could be refacted
