@@ -38,6 +38,7 @@ Phase 6 — Simple query engine
 Phase 7 — Transactions (hard but important)
 Phase 8 — Indexes
 
+
 Readme
 Next thing to work on
 
@@ -46,3 +47,6 @@ I think I would need a linked list of the last time a page was used
 moveToFront for cache like exct funcation
 
 I feel like the DB and Page struct could be refacted
+
+I need to make undo in my wal file maybe cause of things like trancations
+Then after that I should make trancations

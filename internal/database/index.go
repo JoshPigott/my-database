@@ -18,6 +18,7 @@ type DB struct {
 type Pages struct {
 	File         *os.File
 	pageIDToNode map[uint32]*node
+	walFile      WALFile
 	cache        Cache
 }
 
@@ -36,30 +37,40 @@ type Page struct {
 }
 
 // Opens up database file a makes sure there is a metedata page
-func openDefault(filename string) (*DB, error) {
+func openDefault(filename string, walFilename string) (*DB, error) {
 	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database file: %w", err)
 	}
-	db, err := newDatabase(file)
+	db, err := newDatabase(file, walFilename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new database: %w", err)
 	}
+	if err := db.Pages.commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit changes to database: %w", err)
+	}
 	return db, nil
+
 }
 
-func newDatabase(file *os.File) (*DB, error) {
+func newDatabase(file *os.File, walFilename string) (*DB, error) {
 	cache := Cache{
 		capacity: cacheCapacity,
 		items:    map[uint32]*Page{},
 		head:     nil,
 		tail:     nil,
 	}
+	walFile, err := openWALFile(walFilename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open wal file: %w", err)
+	}
 	pages := &Pages{
 		File:         file,
 		pageIDToNode: map[uint32]*node{},
 		cache:        cache,
+		walFile:      walFile,
 	}
+	pages.needsReply()
 
 	if err := pages.ensureDBMetadataPage(file); err != nil {
 		return nil, fmt.Errorf("failed to create metadata page: %w", err)

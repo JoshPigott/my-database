@@ -19,6 +19,7 @@ func testDatabase() {
 	if err != nil {
 		fmt.Println(err)
 	}
+	lookAtFile()
 	if err := DB.Close(); err != nil {
 		fmt.Println(err)
 	}
@@ -42,8 +43,6 @@ func lookAtFile() {
 	if err != nil {
 		fmt.Println("failed to read bytes aye", err)
 	}
-
-	// I need to seek to the start here
 
 	fmt.Println("Number of bytes read:", n)
 	for i := 0; i < int(fileSize)/4096; i++ {
