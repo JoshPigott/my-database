@@ -17,12 +17,16 @@ const (
 
 func Open() (*DB, error) {
 	filename := "data/bubbly.db"
-	return openDefault(filename)
+	walFilename := "data/bubbly-wal.db"
+	return openDefault(filename, walFilename)
 }
 
 func (db *DB) Close() error {
 	if err := db.Pages.File.Close(); err != nil {
-		return fmt.Errorf("failed to close file: %w", err)
+		return fmt.Errorf("failed to close database file: %w", err)
+	}
+	if err := db.Pages.walFile.Close(); err != nil {
+		return fmt.Errorf("failed to close wal file: %w", err)
 	}
 	return nil
 }
@@ -92,6 +96,9 @@ func (db *DB) AddToPage(key string, value string) error {
 	if err := db.Pages.updatePageMetadata(pageMetadata); err != nil {
 		return fmt.Errorf("failed to update page metadata: %w", err)
 	}
+	if err := db.Pages.commit(); err != nil {
+		return fmt.Errorf("failed to commit changes to database: %w", err)
+	}
 	return nil
 }
 
@@ -131,6 +138,9 @@ func (db *DB) Delete(key string) error {
 	}
 	if err := db.Root.Delete(key); err != nil {
 		return fmt.Errorf("failed to to delete key in b+tree: %w", err)
+	}
+	if err := db.Pages.commit(); err != nil {
+		return fmt.Errorf("failed to commit changes to database: %w", err)
 	}
 	return nil
 }

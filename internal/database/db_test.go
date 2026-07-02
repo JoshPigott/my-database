@@ -1,10 +1,14 @@
 package database
 
 import (
+	"bufio"
 	"fmt"
 	"math/rand/v2"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -12,16 +16,31 @@ import (
 Note a few of these tests have been write by AI
 */
 
-/*
-linked list Once have the range querry in qurrys
-*/
-
 func TestOpenClose(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
-	db, err := openDefault(filename)
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Errorf("failed to close database: %v", err)
+	}
+}
+
+func TestBasicInsert(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "bubbly-test.db")
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
+	db, err := openDefault(filename, walFilename)
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	key := "the_key"
+	value := "the_value"
+	if err := db.AddToPage(key, value); err != nil {
+		t.Errorf("failed to add %q -> %q: %v", key, value, err)
 	}
 	if err := db.Close(); err != nil {
 		t.Errorf("failed to close database: %v", err)
@@ -31,7 +50,8 @@ func TestOpenClose(t *testing.T) {
 func TestOneNodeInsert(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
-	db, err := openDefault(filename)
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -64,9 +84,12 @@ func TestOneNodeInsert(t *testing.T) {
 func TestInsert(t *testing.T) {
 	amount := 2000
 	var insertedKeys []string
+
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
-	db, err := openDefault(filename)
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
+
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -101,9 +124,12 @@ func TestInsert(t *testing.T) {
 func TestInsertWithClose(t *testing.T) {
 	amount := 2000
 	var insertedKeys []string
+
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
-	db, err := openDefault(filename)
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
+
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -125,7 +151,7 @@ func TestInsertWithClose(t *testing.T) {
 			if err := db.Close(); err != nil {
 				t.Errorf("failed to close database: %v", err)
 			}
-			db, err = openDefault(filename)
+			db, err = openDefault(filename, walFilename)
 			if err != nil {
 				t.Fatalf("failed to open database: %v", err)
 			}
@@ -148,10 +174,12 @@ func TestInsertWithClose(t *testing.T) {
 func TestOneNodeDelete(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
-	db, err := openDefault(filename)
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
+
 	tests := []struct {
 		key string
 		val string
@@ -186,9 +214,12 @@ func TestOneNodeDelete(t *testing.T) {
 func TestDelete(t *testing.T) {
 	amount := 2000
 	var insertedKeys []string
+
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
-	db, err := openDefault(filename)
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
+
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -235,9 +266,12 @@ func TestDelete(t *testing.T) {
 func TestDeleteWithClose(t *testing.T) {
 	amount := 2000
 	var insertedKeys []string
+
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
-	db, err := openDefault(filename)
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
+
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -259,7 +293,7 @@ func TestDeleteWithClose(t *testing.T) {
 			if err := db.Close(); err != nil {
 				t.Errorf("failed to close database: %v", err)
 			}
-			db, err = openDefault(filename)
+			db, err = openDefault(filename, walFilename)
 			if err != nil {
 				t.Fatalf("failed to open database: %v", err)
 			}
@@ -286,7 +320,7 @@ func TestDeleteWithClose(t *testing.T) {
 			if err := db.Close(); err != nil {
 				t.Errorf("failed to close database: %v", err)
 			}
-			db, err = openDefault(filename)
+			db, err = openDefault(filename, walFilename)
 			if err != nil {
 				t.Fatalf("failed to open database: %v", err)
 			}
@@ -306,8 +340,9 @@ func TestSelectInsertDeleteReopen(t *testing.T) {
 
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
 
-	db, err := openDefault(filename)
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
@@ -354,7 +389,7 @@ func TestSelectInsertDeleteReopen(t *testing.T) {
 				t.Fatalf("close failed: %v", err)
 			}
 
-			db, err = openDefault(filename)
+			db, err = openDefault(filename, walFilename)
 			if err != nil {
 				t.Fatalf("reopen failed: %v", err)
 			}
@@ -410,7 +445,7 @@ func TestSelectInsertDeleteReopen(t *testing.T) {
 		t.Fatalf("final close failed: %v", err)
 	}
 
-	db, err = openDefault(filename)
+	db, err = openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("final reopen failed: %v", err)
 	}
@@ -453,8 +488,9 @@ func TestSelectInsertDeleteReopen(t *testing.T) {
 func TestSelect(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
 
-	db, err := openDefault(filename)
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
@@ -493,7 +529,7 @@ func TestSelect(t *testing.T) {
 	// -------------------------
 	// REOPEN DB
 	// -------------------------
-	db, err = openDefault(filename)
+	db, err = openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("reopen failed: %v", err)
 	}
@@ -527,8 +563,9 @@ func TestSelect(t *testing.T) {
 func TestSelectAll_Basic(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
 
-	db, err := openDefault(filename)
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("open failed: %v", err)
 	}
@@ -568,8 +605,9 @@ func TestSelectAll_Basic(t *testing.T) {
 func TestSelectAll_WithDeletes(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
 
-	db, err := openDefault(filename)
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("open failed: %v", err)
 	}
@@ -618,8 +656,9 @@ func TestSelectAll_WithDeletes(t *testing.T) {
 func TestSelectAll_Stress(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
 
-	db, err := openDefault(filename)
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("open failed: %v", err)
 	}
@@ -678,8 +717,9 @@ func TestSelectAll_Stress(t *testing.T) {
 func TestSelectWhere(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
 
-	db, err := openDefault(filename)
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
@@ -777,11 +817,12 @@ func TestSelectWhere(t *testing.T) {
 func TestSelectWhere_ReopenDB(t *testing.T) {
 	db, dir, deleted1, deleted2 := setupSelectWhereDB(t)
 	filename := filepath.Join(dir, "bubbly-test.db")
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
 
 	db.Close()
 
 	// reopen DB from disk
-	db2, err := openDefault(filename)
+	db2, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to reopen db: %v", err)
 	}
@@ -826,8 +867,9 @@ func TestSelectWhere_ReopenDB(t *testing.T) {
 func setupSelectWhereDB(t *testing.T) (db *DB, dir string, deleted1, deleted2 string) {
 	dir = t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
 
-	db, err := openDefault(filename)
+	db, err := openDefault(filename, walFilename)
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
@@ -857,4 +899,192 @@ func setupSelectWhereDB(t *testing.T) (db *DB, dir string, deleted1, deleted2 st
 	}
 
 	return db, dir, deleted1, deleted2
+}
+
+func TestCrashHelperEntrypoint(t *testing.T) {
+	if os.Getenv("BUBBLY_HELPER_PROCESS") != "1" {
+		t.Skip("helper entrypoint — only runs as a subprocess")
+	}
+	mode := os.Getenv("BUBBLY_HELPER_MODE")
+	filename := os.Getenv("BUBBLY_HELPER_DB_FILE")
+	walFilename := os.Getenv("BUBBLY_HELPER_WAL_FILE")
+
+	db, err := openDefault(filename, walFilename)
+	if err != nil {
+		fmt.Println("ERR open:", err)
+		os.Exit(1)
+	}
+
+	switch mode {
+	case "insert":
+		for i := 0; ; i++ {
+			key := fmt.Sprintf("crash_key_%05d", i)
+			if err := db.AddToPage(key, crashValueFor(key)); err != nil {
+				fmt.Println("ERR add:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK", key)
+		}
+	case "delete":
+		for i := 0; ; i++ {
+			key := fmt.Sprintf("crash_key_%05d", i)
+			if err := db.Delete(key); err != nil {
+				fmt.Println("ERR delete:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK", key)
+		}
+	default:
+		fmt.Println("ERR unknown mode:", mode)
+		os.Exit(1)
+	}
+}
+
+func crashValueFor(key string) string {
+	return strings.Repeat(key+"|", 8)
+}
+
+func isWellFormedCrashKey(key string) bool {
+	const prefix = "crash_key_"
+	if !strings.HasPrefix(key, prefix) {
+		return false
+	}
+	suffix := key[len(prefix):]
+	if len(suffix) != 5 {
+		return false
+	}
+	for _, r := range suffix {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func runAndKillMidway(t *testing.T, mode, filename, walFilename string, maxOps int) []string {
+	t.Helper()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestCrashHelperEntrypoint$")
+	cmd.Env = append(os.Environ(),
+		"BUBBLY_HELPER_PROCESS=1",
+		"BUBBLY_HELPER_MODE="+mode,
+		"BUBBLY_HELPER_DB_FILE="+filename,
+		"BUBBLY_HELPER_WAL_FILE="+walFilename,
+	)
+	cmd.Stderr = os.Stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("stdout pipe: %v", err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start helper subprocess: %v", err)
+	}
+
+	killAfter := rand.IntN(maxOps) + 1
+	var confirmed []string
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		key, ok := strings.CutPrefix(scanner.Text(), "OK ")
+		if !ok {
+			continue
+		}
+		confirmed = append(confirmed, key)
+		if len(confirmed) >= killAfter {
+			break
+		}
+	}
+
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
+	return confirmed
+}
+
+func TestCrashMidInsert(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "bubbly-crash-test.db")
+	walFilename := filepath.Join(dir, "bubbly-crash-wal-test.db")
+	const rounds = 8
+
+	for round := 0; round < rounds; round++ {
+		confirmed := runAndKillMidway(t, "insert", filename, walFilename, 60)
+		t.Logf("round %d: helper confirmed ~%d inserts before being killed", round, len(confirmed))
+
+		db, err := openDefault(filename, walFilename)
+		if err != nil {
+			t.Fatalf("round %d: reopen after simulated crash failed: %v", round, err)
+		}
+		got, err := db.SelectAll()
+		if err != nil {
+			t.Fatalf("round %d: SelectAll after crash failed: %v", round, err)
+		}
+		for key, val := range got {
+			if !isWellFormedCrashKey(key) {
+				t.Errorf("round %d: recovered malformed key %q -> %q", round, key, val)
+				continue
+			}
+			if want := crashValueFor(key); val != want {
+				t.Errorf("round %d: corrupted value for %q: got %q want %q", round, key, val, want)
+			}
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("round %d: close failed: %v", round, err)
+		}
+		os.Remove(filename)
+		os.Remove(walFilename)
+	}
+}
+
+func TestCrashMidDelete(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "bubbly-crash-test.db")
+	walFilename := filepath.Join(dir, "bubbly-crash-wal-test.db")
+	const seedCount = 200
+	const rounds = 8
+
+	for round := 0; round < rounds; round++ {
+		seedDB, err := openDefault(filename, walFilename)
+		if err != nil {
+			t.Fatalf("round %d: seed open failed: %v", round, err)
+		}
+		for i := 0; i < seedCount; i++ {
+			key := fmt.Sprintf("crash_key_%05d", i)
+			if err := seedDB.AddToPage(key, crashValueFor(key)); err != nil {
+				t.Fatalf("round %d: seed insert failed: %v", round, err)
+			}
+		}
+		if err := seedDB.Close(); err != nil {
+			t.Fatalf("round %d: seed close failed: %v", round, err)
+		}
+
+		confirmed := runAndKillMidway(t, "delete", filename, walFilename, seedCount/2)
+		t.Logf("round %d: helper confirmed ~%d deletes before being killed", round, len(confirmed))
+
+		db, err := openDefault(filename, walFilename)
+		if err != nil {
+			t.Fatalf("round %d: reopen after simulated crash failed: %v", round, err)
+		}
+		got, err := db.SelectAll()
+		if err != nil {
+			t.Fatalf("round %d: SelectAll after crash failed: %v", round, err)
+		}
+		for key, val := range got {
+			if !isWellFormedCrashKey(key) {
+				t.Errorf("round %d: recovered malformed key %q -> %q after delete-crash", round, key, val)
+			}
+		}
+		for i := 0; i < seedCount; i++ {
+			key := fmt.Sprintf("crash_key_%05d", i)
+			val, present := got[key]
+			if !present {
+				continue
+			}
+			if want := crashValueFor(key); val != want {
+				t.Errorf("round %d: surviving key %q is corrupted: got %q want %q", round, key, val, want)
+			}
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("round %d: close failed: %v", round, err)
+		}
+		os.Remove(filename)
+		os.Remove(walFilename)
+	}
 }

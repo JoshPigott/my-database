@@ -123,8 +123,8 @@ func (pages *Pages) createFirstDataPage() error {
 		return fmt.Errorf("failed to get file stats: %w", err)
 	}
 	fileSize := info.Size()
-	// Checks if only metadata page
-	if fileSize == pageSize {
+	// Checks if databse has been set up before
+	if fileSize == 0 {
 		_, err := pages.create(DataPage)
 		if err != nil {
 			return fmt.Errorf("failed to create new data page: %w", err)

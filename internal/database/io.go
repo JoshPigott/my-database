@@ -50,15 +50,16 @@ func (pages *Pages) writeBytes(bytes []byte, offset int, pageID uint32) error {
 		copy(pageBytes[offset:offset+len(bytes)], bytes)
 	}
 
-	if _, err := pages.File.Seek(pageOffset, io.SeekStart); err != nil {
-		return fmt.Errorf("failed to seek to offset: %w", err)
-	}
-	if _, err := pages.File.Write(pageBytes); err != nil {
-		return fmt.Errorf("failed to write bytes: %w", err)
-	}
-	if err := pages.File.Sync(); err != nil {
-		return fmt.Errorf("failed to sync file: %w", err)
-	}
+	// if _, err := pages.File.Seek(pageOffset, io.SeekStart); err != nil {
+	// 	return fmt.Errorf("failed to seek to offset: %w", err)
+	// }
+	// if _, err := pages.File.Write(pageBytes); err != nil {
+	// 	return fmt.Errorf("failed to write bytes: %w", err)
+	// }
+	// if err := pages.File.Sync(); err != nil {
+	// 	return fmt.Errorf("failed to sync file: %w", err)
+	// }
+	pages.walFile.writeEntry(pageOffset, pageBytes)
 	pages.updateCache(pageID, pageBytes)
 	return nil
 }

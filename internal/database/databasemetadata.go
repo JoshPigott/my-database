@@ -106,8 +106,8 @@ func (root *node) rootPageLink() error {
 }
 
 func (pages *Pages) getRootPage() (uint32, bool, error) {
-	fullBytes, err := pages.ReadBytes(pageSize, pageStart, metadataPageID)
-	bytes := fullBytes[pageMetadataSize : pageMetadataSize+rootpageIDSize]
+	offset := pageMetadataSize + rootPageIDIndex
+	bytes, err := pages.ReadBytes(rootpageIDSize, offset, metadataPageID)
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to read root page id: %w", err)
 	}
