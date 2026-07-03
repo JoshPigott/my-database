@@ -1088,3 +1088,102 @@ func TestCrashMidDelete(t *testing.T) {
 		os.Remove(walFilename)
 	}
 }
+
+func TestTransaction(t *testing.T) {
+	amount := 100
+	var insertedKeys []string
+	expected := make(map[string]string)
+
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "bubbly-test.db")
+	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
+
+	db, err := openDefault(filename, walFilename)
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+
+	indices := make([]int, amount)
+	for i := range indices {
+		indices[i] = i
+	}
+
+	// Shuffle them
+	rand.Shuffle(len(indices), func(i, j int) {
+		indices[i], indices[j] = indices[j], indices[i]
+	})
+
+	if err := db.BeginTX(); err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	// Insert in random order, all within one transaction
+	for _, i := range indices {
+		key := fmt.Sprintf(
+			"dataset_worksheet_user_profile_system_generated_long_form_key_field_identifier__%04d_v1",
+			i,
+		)
+		val := fmt.Sprintf("%02x", i%256)
+
+		db.AddToPage(key, val)
+		insertedKeys = append(insertedKeys, key)
+		expected[key] = val
+	}
+
+	if err := db.EndTX(); err != nil {
+		t.Fatalf("failed to commit transaction: %v", err)
+	}
+
+	// Verify everything made it to disk after commit
+	got, err := db.SelectAll()
+	if err != nil {
+		t.Fatalf("failed to select all: %v", err)
+	}
+
+	if len(got) != len(expected) {
+		t.Errorf("expected %d keys after commit, got %d", len(expected), len(got))
+	}
+
+	for key, wantVal := range expected {
+		gotVal, ok := got[key]
+		if !ok {
+			t.Errorf("key %q missing after transaction commit", key)
+			continue
+		}
+		if gotVal != wantVal {
+			t.Errorf("key %q: expected value %q, got %q", key, wantVal, gotVal)
+		}
+	}
+
+	// Now delete everything inside a second transaction
+	rand.Shuffle(len(insertedKeys), func(i, j int) {
+		insertedKeys[i], insertedKeys[j] = insertedKeys[j], insertedKeys[i]
+	})
+
+	if err := db.BeginTX(); err != nil {
+		t.Fatalf("failed to begin delete transaction: %v", err)
+	}
+
+	for _, key := range insertedKeys {
+		if err := db.Delete(key); err != nil {
+			t.Errorf("failed to delete %q: %v", key, err)
+		}
+	}
+
+	if err := db.EndTX(); err != nil {
+		t.Fatalf("failed to commit delete transaction: %v", err)
+	}
+
+	got, err = db.SelectAll()
+	if err != nil {
+		t.Fatalf("failed to select all after deletes: %v", err)
+	}
+
+	if len(got) != 0 {
+		t.Errorf("expected 0 keys after deleting everything, got %d", len(got))
+	}
+
+	if err := db.Close(); err != nil {
+		t.Errorf("failed to close database: %v", err)
+	}
+}

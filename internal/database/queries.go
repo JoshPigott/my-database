@@ -96,6 +96,9 @@ func (db *DB) AddToPage(key string, value string) error {
 	if err := db.Pages.updatePageMetadata(pageMetadata); err != nil {
 		return fmt.Errorf("failed to update page metadata: %w", err)
 	}
+	if db.isManaulTX {
+		return nil
+	}
 	if err := db.Pages.commit(); err != nil {
 		return fmt.Errorf("failed to commit changes to database: %w", err)
 	}
@@ -138,6 +141,9 @@ func (db *DB) Delete(key string) error {
 	}
 	if err := db.Root.Delete(key); err != nil {
 		return fmt.Errorf("failed to to delete key in b+tree: %w", err)
+	}
+	if db.isManaulTX {
+		return nil
 	}
 	if err := db.Pages.commit(); err != nil {
 		return fmt.Errorf("failed to commit changes to database: %w", err)
@@ -218,4 +224,23 @@ func (db *DB) SelectWhere(condition MathConditions, boundaryKey string) ([]data,
 		return nil, errors.New("invaild condition")
 	}
 	return selectedData, nil
+}
+
+// Clear existing WAL file and beings transaction
+func (db *DB) BeginTX() error {
+	err := db.Pages.needsReply()
+	if err != nil {
+		return fmt.Errorf("failed to reply WAL file to clear it: %w", err)
+	}
+	db.isManaulTX = true
+	return nil
+}
+
+// Ends transaction and commits all changes to database
+func (db *DB) EndTX() error {
+	if err := db.Pages.commit(); err != nil {
+		return fmt.Errorf("failed to commit to transaction: %w", err)
+	}
+	db.isManaulTX = false
+	return nil
 }

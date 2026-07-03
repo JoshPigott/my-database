@@ -118,6 +118,9 @@ func (pages Pages) needsReply() error {
 		return fmt.Errorf("failed to get file info: %w", err)
 	}
 	bytes := make([]byte, commitSize)
+	if _, err := pages.walFile.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("failed to seek to offset: %w", err)
+	}
 	if _, err := pages.walFile.Read(bytes); err != nil {
 		return fmt.Errorf("failed to read wal file: %w", err)
 	}
