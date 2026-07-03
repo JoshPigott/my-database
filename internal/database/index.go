@@ -7,12 +7,13 @@ import (
 
 const (
 	pageStart     = 0
-	cacheCapacity = 100 // This number could be bigger
+	cacheCapacity = 2000
 )
 
 type DB struct {
-	Pages *Pages
-	Root  *node
+	Pages      *Pages
+	Root       *node
+	isManaulTX bool
 }
 
 type Pages struct {
@@ -50,7 +51,6 @@ func openDefault(filename string, walFilename string) (*DB, error) {
 		return nil, fmt.Errorf("failed to commit changes to database: %w", err)
 	}
 	return db, nil
-
 }
 
 func newDatabase(file *os.File, walFilename string) (*DB, error) {

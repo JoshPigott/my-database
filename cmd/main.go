@@ -17,11 +17,10 @@ func testDatabase() {
 	var err error
 	DB, err = database.Open()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("failed to open database: %v \n", err)
 	}
-	lookAtFile()
 	if err := DB.Close(); err != nil {
-		fmt.Println(err)
+		fmt.Printf("failed to close database: %v \n", err)
 	}
 }
 
@@ -51,6 +50,7 @@ func lookAtFile() {
 		fmt.Println(bytes[i*4096 : (i+1)*4096])
 	}
 	// fmt.Println(bytes)
+
 }
 
 func lookAtData() {

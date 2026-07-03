@@ -6,6 +6,7 @@ import (
 	"fmt"
 )
 
+// Gets node node from disk and reads it into memory
 func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	var n *node
 	offset := 0

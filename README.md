@@ -141,10 +141,21 @@ Each page size is 4096 bytes or 4KB
 - key 1
 - child 2 PageID
 
+## Page Cache
+- Keeps recently used pages in memory to avoid disk reads  
+- Fixed size; old pages are removed when new ones are needed  
+- Tracks usage with a double-linked list  
+
+## WAL & Transactions
+- WAL ensures changes are all applied together or not at all  
+- Changes are written to WAL before being applied to the database  
+- If a crash happens before commit, changes are discarded  
+- On restart, WAL is used to recover or ignore incomplete changes  
+- Manual transactions apply this all-or-nothing behavior across multiple operations  
 
 ## Know promblems 
 - duplicates keys cannot be added to the b+tree will regret second key
 - Reading of slots and data could just be one read but they are two atm
-
+- Manual transitions can crash if too many database changes occur, as the page cache is limited and there’s currently no WAL undo support.
 ## Notes 
 - Some tests where maybe by AI for increased development speed 
