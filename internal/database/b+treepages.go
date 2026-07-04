@@ -8,7 +8,6 @@ import (
 
 // Gets node node from disk and reads it into memory
 func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
-	var n *node
 	offset := 0
 	pageBytes, err := pages.ReadBytes(pageSize, offset, pageID)
 	if err != nil {
@@ -18,6 +17,13 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	if pageBytes[pageStart] == 0 {
 		return nil, errors.New("invalid page node")
 	}
+	n := pages.formatNode(pageBytes)
+	return n, nil
+}
+
+// Format page meatdata and calls spefic foramting node funcation
+func (pages *Pages) formatNode(pageBytes []byte) *node {
+	var n *node
 	metadataBytes := pageBytes[pageStart:pageMetadataSize]
 	pageMetadata := formatPageMetadata(metadataBytes)
 	switch pageMetadata.pageType {
@@ -26,9 +32,9 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	case LeafPage:
 		n = pages.formatLeafNode(pageBytes, pageMetadata)
 	}
-	n.pageID = pageID
-	pages.pageIDToNode[pageID] = n
-	return n, nil
+	n.pageID = pageMetadata.pageID
+	pages.pageIDToNode[pageMetadata.pageID] = n
+	return n
 }
 
 func (n *node) writeNodeToPage() error {
@@ -66,7 +72,7 @@ func (n *node) deleteNodePage() error {
 }
 
 // Loops over number of keys format getting the keys and children
-func (pages *Pages) formatInternalNode(pageBytes []byte, pageMetadata pageMetadata) *node {
+func (pages *Pages) formatInternalNode(pageBytes []byte, pageMetadata pageMetadata) *node { // Yes
 	n := node{}
 	n.pages = pages
 	offset := pageMetadataSize
@@ -81,7 +87,7 @@ func (pages *Pages) formatInternalNode(pageBytes []byte, pageMetadata pageMetada
 	return &n
 }
 
-func (pages *Pages) formatInternalKey(n *node, pageBytes []byte, offset int) int {
+func (pages *Pages) formatInternalKey(n *node, pageBytes []byte, offset int) int { // Yes
 	pages.formatChild(n, pageBytes, offset)
 	offset += pageIDSize
 
@@ -96,7 +102,7 @@ func (pages *Pages) formatInternalKey(n *node, pageBytes []byte, offset int) int
 	return offset
 }
 
-func (pages *Pages) formatLeafNode(pageBytes []byte, pageMetadata pageMetadata) *node {
+func (pages *Pages) formatLeafNode(pageBytes []byte, pageMetadata pageMetadata) *node { // Yes
 	n := node{}
 	n.leaf = true
 	offset := pageMetadataSize
@@ -112,7 +118,7 @@ func (pages *Pages) formatLeafNode(pageBytes []byte, pageMetadata pageMetadata) 
 }
 
 // Format a leaf key
-func formatLeafKey(n *node, pageBytes []byte, offset int) int {
+func formatLeafKey(n *node, pageBytes []byte, offset int) int { // Yes
 	// Get key length
 	keylen := int(binary.BigEndian.Uint16(pageBytes[offset : offset+keyLenStorageSize]))
 	offset += keyLenStorageSize
@@ -132,7 +138,7 @@ func formatLeafKey(n *node, pageBytes []byte, offset int) int {
 	return offset
 }
 
-func (pages *Pages) formatChild(n *node, pageBytes []byte, offest int) {
+func (pages *Pages) formatChild(n *node, pageBytes []byte, offest int) { // Yes
 	childPageID := binary.BigEndian.Uint32(pageBytes[offest : offest+pageIDSize])
 	n.childPageIDs = append(n.childPageIDs, childPageID)
 	n.children = append(n.children, pages.pageIDToNode[childPageID])
@@ -140,6 +146,15 @@ func (pages *Pages) formatChild(n *node, pageBytes []byte, offest int) {
 
 // Creates a whole leaf node to disk
 func (n *node) writeLeafNode() error {
+	buf := createLeafNodeBuf(n)
+	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+		return fmt.Errorf("failed to write leaf node bytes: %w", err)
+	}
+	return nil
+}
+
+// Loops over leaf node converting to bytes to create a buf
+func createLeafNodeBuf(n *node) []byte {
 	buf := make([]byte, pageSize)
 
 	offset := pageMetadataSize
@@ -160,14 +175,20 @@ func (n *node) writeLeafNode() error {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
-		return fmt.Errorf("failed to write leaf node bytes: %w", err)
-	}
-	return nil
+	return buf
 }
 
 // Creates a whole internal node to disk
 func (n *node) writeInternalNode() error {
+	buf := createInternalNodeBuf(n)
+	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
+		return fmt.Errorf("failed to write internal node bytes: %w", err)
+	}
+	return nil
+}
+
+// Loops over internal node converting to bytes to create a buf
+func createInternalNodeBuf(n *node) []byte {
 	buf := make([]byte, pageSize)
 	offset := pageMetadataSize
 
@@ -187,13 +208,10 @@ func (n *node) writeInternalNode() error {
 	}
 	metadataBuf := createMetadataBuffer(pageMetadata)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
-	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
-		return fmt.Errorf("failed to write internal node bytes: %w", err)
-	}
-	return nil
+	return buf
 }
 
-func addLeafKey(buf []byte, pageID uint32, slotID uint16, offset int, key string) int {
+func addLeafKey(buf []byte, pageID uint32, slotID uint16, offset int, key string) int { // Yes
 	// Key len
 	binary.BigEndian.PutUint16(buf[offset:offset+keyLenStorageSize], uint16(len(key)))
 	offset += keyLenStorageSize
@@ -213,7 +231,7 @@ func addLeafKey(buf []byte, pageID uint32, slotID uint16, offset int, key string
 	return offset
 }
 
-func addInternalKey(buf []byte, offset int, key string, childPageID uint32) int {
+func addInternalKey(buf []byte, offset int, key string, childPageID uint32) int { // Yes
 	// Child node page
 	binary.BigEndian.PutUint32(buf[offset:offset+pageIDSize], childPageID)
 	offset += pageIDSize
