@@ -204,7 +204,7 @@ func (n *node) addKey(key string, left *node, right *node, keyLocation *KeyLocat
 Used when a node has to split as too many keys
 So children also get split
 */
-func (n *node) addChildern(left *node, right *node) {
+func (n *node) addChildern(left *node, right *node) { // Yes can test
 	if left == nil || right == nil {
 		return
 	}
@@ -239,52 +239,7 @@ func (n *node) split() (*string, *node, *node, error) {
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create new node: %w", err)
 	}
-
-	middleIndex := len(n.keys) / 2
-	middlekey := &n.keys[middleIndex]
-
-	rightStart := middleIndex
-	if !n.leaf {
-		rightStart = middleIndex + 1
-	}
-
-	// Updates keys
-	if !n.leaf {
-		right.keys = make([]string, len(n.keys[rightStart:]))
-		copy(right.keys, n.keys[rightStart:])
-	} else {
-		right.keys = make([]string, len(n.keys[rightStart:]))
-		copy(right.keys, n.keys[rightStart:])
-	}
-	n.keys = n.keys[:middleIndex]
-
-	// Updates KeyLocation
-	if n.leaf {
-		right.keyLocations = make([]*KeyLocation, len(n.keyLocations[rightStart:]))
-		copy(right.keyLocations, n.keyLocations[rightStart:])
-		n.keyLocations = n.keyLocations[:middleIndex]
-	}
-
-	// Updates children (splits into different nodes)
-	if len(n.children) > middleIndex {
-		rightChildStart := middleIndex + 1
-
-		right.children = append(right.children, n.children[rightChildStart:]...)
-		n.children = n.children[:rightChildStart]
-
-		right.childPageIDs = append(right.childPageIDs, n.childPageIDs[rightChildStart:]...)
-		n.childPageIDs = n.childPageIDs[:rightChildStart]
-	}
-
-	// Updates next node
-	if n.leaf {
-		right.Next = n.Next
-		right.NextID = n.NextID
-
-		n.Next = right
-		n.NextID = right.pageID
-	}
-
+	middlekey := computeSplit(n, right)
 	// Write node to disk
 	if err := n.writeNodeToPage(); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed write left spilt node to disk: %w", err)
@@ -292,8 +247,55 @@ func (n *node) split() (*string, *node, *node, error) {
 	if err := right.writeNodeToPage(); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed write right spilt node to disk: %w", err)
 	}
-
 	return middlekey, n, right, nil
+}
+
+func computeSplit(l *node, r *node) *string {
+	middleIndex := len(l.keys) / 2
+	middlekey := &l.keys[middleIndex]
+
+	rStart := middleIndex
+	if !l.leaf {
+		rStart = middleIndex + 1
+	}
+
+	// Updates keys
+	if !l.leaf {
+		r.keys = make([]string, len(l.keys[rStart:]))
+		copy(r.keys, l.keys[rStart:])
+	} else {
+		r.keys = make([]string, len(l.keys[rStart:]))
+		copy(r.keys, l.keys[rStart:])
+	}
+	l.keys = l.keys[:middleIndex]
+
+	// Updates KeyLocation
+	if l.leaf {
+		r.keyLocations = make([]*KeyLocation, len(l.keyLocations[rStart:]))
+		copy(r.keyLocations, l.keyLocations[rStart:])
+		l.keyLocations = l.keyLocations[:middleIndex]
+	}
+
+	// Updates children (splits into different nodes)
+	if len(l.childPageIDs) > middleIndex {
+		rChildStart := middleIndex + 1
+
+		r.children = append(r.children, l.children[rChildStart:]...)
+		l.children = l.children[:rChildStart]
+
+		r.childPageIDs = append(r.childPageIDs, l.childPageIDs[rChildStart:]...)
+		l.childPageIDs = l.childPageIDs[:rChildStart]
+	}
+
+	// Updates next node
+	if l.leaf {
+		r.Next = l.Next
+		r.NextID = l.NextID
+
+		l.Next = r
+		l.NextID = r.pageID
+	}
+	return middlekey
 }
 
 // Finds the child where the key should be inesrt at. Read the child if not in memory

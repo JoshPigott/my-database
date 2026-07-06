@@ -72,7 +72,7 @@ func (n *node) deleteNodePage() error {
 }
 
 // Loops over number of keys format getting the keys and children
-func (pages *Pages) formatInternalNode(pageBytes []byte, pageMetadata pageMetadata) *node { // Yes
+func (pages *Pages) formatInternalNode(pageBytes []byte, pageMetadata pageMetadata) *node {
 	n := node{}
 	n.pages = pages
 	offset := pageMetadataSize
@@ -87,7 +87,7 @@ func (pages *Pages) formatInternalNode(pageBytes []byte, pageMetadata pageMetada
 	return &n
 }
 
-func (pages *Pages) formatInternalKey(n *node, pageBytes []byte, offset int) int { // Yes
+func (pages *Pages) formatInternalKey(n *node, pageBytes []byte, offset int) int {
 	pages.formatChild(n, pageBytes, offset)
 	offset += pageIDSize
 
@@ -102,7 +102,7 @@ func (pages *Pages) formatInternalKey(n *node, pageBytes []byte, offset int) int
 	return offset
 }
 
-func (pages *Pages) formatLeafNode(pageBytes []byte, pageMetadata pageMetadata) *node { // Yes
+func (pages *Pages) formatLeafNode(pageBytes []byte, pageMetadata pageMetadata) *node {
 	n := node{}
 	n.leaf = true
 	offset := pageMetadataSize
@@ -118,7 +118,7 @@ func (pages *Pages) formatLeafNode(pageBytes []byte, pageMetadata pageMetadata) 
 }
 
 // Format a leaf key
-func formatLeafKey(n *node, pageBytes []byte, offset int) int { // Yes
+func formatLeafKey(n *node, pageBytes []byte, offset int) int {
 	// Get key length
 	keylen := int(binary.BigEndian.Uint16(pageBytes[offset : offset+keyLenStorageSize]))
 	offset += keyLenStorageSize
@@ -138,7 +138,7 @@ func formatLeafKey(n *node, pageBytes []byte, offset int) int { // Yes
 	return offset
 }
 
-func (pages *Pages) formatChild(n *node, pageBytes []byte, offest int) { // Yes
+func (pages *Pages) formatChild(n *node, pageBytes []byte, offest int) {
 	childPageID := binary.BigEndian.Uint32(pageBytes[offest : offest+pageIDSize])
 	n.childPageIDs = append(n.childPageIDs, childPageID)
 	n.children = append(n.children, pages.pageIDToNode[childPageID])
@@ -211,7 +211,7 @@ func createInternalNodeBuf(n *node) []byte {
 	return buf
 }
 
-func addLeafKey(buf []byte, pageID uint32, slotID uint16, offset int, key string) int { // Yes
+func addLeafKey(buf []byte, pageID uint32, slotID uint16, offset int, key string) int {
 	// Key len
 	binary.BigEndian.PutUint16(buf[offset:offset+keyLenStorageSize], uint16(len(key)))
 	offset += keyLenStorageSize
@@ -231,7 +231,7 @@ func addLeafKey(buf []byte, pageID uint32, slotID uint16, offset int, key string
 	return offset
 }
 
-func addInternalKey(buf []byte, offset int, key string, childPageID uint32) int { // Yes
+func addInternalKey(buf []byte, offset int, key string, childPageID uint32) int {
 	// Child node page
 	binary.BigEndian.PutUint32(buf[offset:offset+pageIDSize], childPageID)
 	offset += pageIDSize
