@@ -26,9 +26,9 @@ type pageMetadata struct {
 }
 
 // Rewrite page metadata
-func (pages *Pages) updatePageMetadata(pageMetadata pageMetadata) error {
-	buf := createMetadataBuffer(pageMetadata)
-	err := pages.writeBytes(buf, 0, pageMetadata.pageID)
+func (pages *Pages) updatePageMetadata(pm pageMetadata) error {
+	buf := createMetadataBuffer(pm)
+	err := pages.writeBytes(buf, 0, pm.pageID)
 	if err != nil {
 		return fmt.Errorf("failed to write page metadata: %w", err)
 	}
@@ -47,12 +47,12 @@ func formatPageMetadata(metadataBytes []byte) pageMetadata {
 }
 
 // create the metadata buffer
-func createMetadataBuffer(pageMetadata pageMetadata) []byte {
+func createMetadataBuffer(pm pageMetadata) []byte {
 	buf := make([]byte, pageMetadataSize)
-	buf[pageTypeIndex] = byte(pageMetadata.pageType)
-	binary.BigEndian.PutUint32(buf[pageIDIndex:numEntriesIndex], pageMetadata.pageID)
-	binary.BigEndian.PutUint16(buf[numEntriesIndex:freeSpaceStartIndex], pageMetadata.numEntries)
-	binary.BigEndian.PutUint16(buf[freeSpaceStartIndex:freeSpaceEndIndex], pageMetadata.freeSpaceStart)
-	binary.BigEndian.PutUint16(buf[freeSpaceEndIndex:pageMetadataSize], pageMetadata.freeSpaceEnd)
+	buf[pageTypeIndex] = byte(pm.pageType)
+	binary.BigEndian.PutUint32(buf[pageIDIndex:numEntriesIndex], pm.pageID)
+	binary.BigEndian.PutUint16(buf[numEntriesIndex:freeSpaceStartIndex], pm.numEntries)
+	binary.BigEndian.PutUint16(buf[freeSpaceStartIndex:freeSpaceEndIndex], pm.freeSpaceStart)
+	binary.BigEndian.PutUint16(buf[freeSpaceEndIndex:pageMetadataSize], pm.freeSpaceEnd)
 	return buf
 }

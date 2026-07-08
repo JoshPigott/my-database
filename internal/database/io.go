@@ -134,8 +134,8 @@ func (pages *Pages) readPageMetadata(pageID uint32) (pageMetadata, error) {
 	if err != nil {
 		return pageMetadata{}, fmt.Errorf("failed to read page metadata: %w", err)
 	}
-	pageMetadata := formatPageMetadata(metadataBytes)
-	return pageMetadata, nil
+	pm := formatPageMetadata(metadataBytes)
+	return pm, nil
 }
 
 // Read page to get the data in a data page
@@ -146,11 +146,11 @@ func (pages *Pages) readDataPage(pageID uint32) ([]record, error) {
 	}
 
 	// format data
-	pageMetadata := formatPageMetadata(pageBytes)
-	if pageMetadata.pageType != DataPage {
+	pm := formatPageMetadata(pageBytes)
+	if pm.pageType != DataPage {
 		return []record{}, ErrNotDataPage
 	}
-	slots := formatSlots(pageBytes, pageMetadata)
+	slots := formatSlots(pageBytes, pm)
 	dataRecords := formatData(pageBytes, slots)
 	return dataRecords, nil
 }
