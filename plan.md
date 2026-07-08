@@ -48,5 +48,4 @@ moveToFront for cache like exct funcation
 
 I feel like the DB and Page struct could be refacted
 
-I need to make undo in my wal file maybe cause of things like trancations
-Then after that I should make trancations
+I will change the pageMetadata to like pm and databaseMetadata to dm

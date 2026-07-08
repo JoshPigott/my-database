@@ -22,7 +22,7 @@ type slot struct {
 	flag   uint16
 }
 
-// Format bytes into a slot struc
+// Format bytes into a slot struct
 func formatSlot(slotBytes []byte) slot {
 	return slot{
 		offset: binary.BigEndian.Uint16(slotBytes[slotOffsetIndex:slotLengthIndex]),
@@ -32,11 +32,11 @@ func formatSlot(slotBytes []byte) slot {
 }
 
 // Iterates over each slot connverting bytes to make a slice
-func formatSlots(pageBytes []byte, pageMetadata pageMetadata) []slot {
+func formatSlots(pageBytes []byte, pm pageMetadata) []slot {
 	var formatedSlots []slot
-	totalSlotSize := int(pageMetadata.numEntries) * slotSize
+	totalSlotSize := int(pm.numEntries) * slotSize
 	slotsBytes := pageBytes[pageMetadataSize:(pageMetadataSize + totalSlotSize)]
-	for i := range int(pageMetadata.numEntries) {
+	for i := range int(pm.numEntries) {
 		slotBtyes := slotsBytes[(i * slotSize) : (i*slotSize)+slotSize]
 		slot := formatSlot(slotBtyes)
 		formatedSlots = append(formatedSlots, slot)
@@ -45,6 +45,6 @@ func formatSlots(pageBytes []byte, pageMetadata pageMetadata) []slot {
 }
 
 // Get offset for new and shift slot buf
-func getSlotOffset(pageMetadata pageMetadata) int {
-	return pageMetadataSize + int(pageMetadata.numEntries)*slotSize
+func getSlotOffset(pm pageMetadata) int {
+	return pageMetadataSize + int(pm.numEntries)*slotSize
 }

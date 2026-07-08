@@ -186,9 +186,9 @@ func (n *node) addKey(key string, left *node, right *node, keyLocation *KeyLocat
 		n.keyLocations[i] = keyLocation
 	}
 
-	n.addChildern(left, right)
-	left = nil
-	right = nil
+	if left != nil && right != nil {
+		n.addChildern(left, right, i)
+	}
 
 	if n.isOverflow() {
 		splitResult, left, right, err = n.split()
@@ -200,30 +200,18 @@ func (n *node) addKey(key string, left *node, right *node, keyLocation *KeyLocat
 	return splitResult, left, right, nil
 }
 
-/*
-Used when a node has to split as too many keys
-So children also get split
-*/
-func (n *node) addChildern(left *node, right *node) { // Yes can test
-	if left == nil || right == nil {
-		return
-	}
-	if n.leaf {
-		n.leaf = false
-	}
-	leftChildKey := left.keys[len(left.keys)-1]
-	i := sort.Search(len(n.keys), func(i int) bool {
-		return strings.Compare(leftChildKey, n.keys[i]) < 0
-	})
-
-	// Insert children left at odd child postion
-	if i+1 > len(n.children) {
+// Adds left and right node into the parent children after a split where old child was
+func (n *node) addChildern(left *node, right *node, i int) {
+	// Parent is a new node
+	if len(n.children) == 0 {
 		n.children = append(n.children, nil)
 		n.childPageIDs = append(n.childPageIDs, 0)
-	}
-	n.children[i] = left
-	n.childPageIDs[i] = left.pageID
 
+		n.children[i] = left
+		n.childPageIDs[i] = left.pageID
+	}
+
+	// Adds new right child
 	n.children = append(n.children, nil)
 	copy(n.children[i+2:], n.children[i+1:])
 	n.children[i+1] = right
@@ -231,6 +219,9 @@ func (n *node) addChildern(left *node, right *node) { // Yes can test
 	n.childPageIDs = append(n.childPageIDs, 0)
 	copy(n.childPageIDs[i+2:], n.childPageIDs[i+1:])
 	n.childPageIDs[i+1] = right.pageID
+
+	left = nil
+	right = nil
 }
 
 // splits node into two new nodes

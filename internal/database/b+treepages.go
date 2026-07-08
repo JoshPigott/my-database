@@ -21,19 +21,19 @@ func (pages *Pages) ReadPageNode(pageID uint32) (*node, error) {
 	return n, nil
 }
 
-// Format page meatdata and calls spefic foramting node funcation
+// Format page metadata and calls spefic foramting node funcation
 func (pages *Pages) formatNode(pageBytes []byte) *node {
 	var n *node
 	metadataBytes := pageBytes[pageStart:pageMetadataSize]
-	pageMetadata := formatPageMetadata(metadataBytes)
-	switch pageMetadata.pageType {
+	pm := formatPageMetadata(metadataBytes)
+	switch pm.pageType {
 	case InternalPage:
-		n = pages.formatInternalNode(pageBytes, pageMetadata)
+		n = pages.formatInternalNode(pageBytes, pm)
 	case LeafPage:
-		n = pages.formatLeafNode(pageBytes, pageMetadata)
+		n = pages.formatLeafNode(pageBytes, pm)
 	}
-	n.pageID = pageMetadata.pageID
-	pages.pageIDToNode[pageMetadata.pageID] = n
+	n.pageID = pm.pageID
+	pages.pageIDToNode[pm.pageID] = n
 	return n
 }
 
@@ -54,15 +54,15 @@ func (n *node) writeNodeToPage() error {
 // Turns node page into free page
 func (n *node) deleteNodePage() error {
 	buf := make([]byte, pageSize)
-	metadata, err := n.pages.readDBMetadata()
+	m, err := n.pages.readDBMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to get database metadata: %w", err)
 	}
 	buf[pageStart] = byte(FreePage)
-	binary.BigEndian.PutUint32(buf[pageTypeSize:pageTypeSize+pageIDSize], metadata.nextFreePage)
-	metadata.nextFreePage = n.pageID
+	binary.BigEndian.PutUint32(buf[pageTypeSize:pageTypeSize+pageIDSize], m.nextFreePage)
+	m.nextFreePage = n.pageID
 
-	if err := n.pages.updateDBMetadata(metadata); err != nil {
+	if err := n.pages.updateDBMetadata(m); err != nil {
 		return fmt.Errorf("failed to update database metadata: %w", err)
 	}
 	if err := n.pages.writeBytes(buf, pageStart, n.pageID); err != nil {
@@ -72,16 +72,16 @@ func (n *node) deleteNodePage() error {
 }
 
 // Loops over number of keys format getting the keys and children
-func (pages *Pages) formatInternalNode(pageBytes []byte, pageMetadata pageMetadata) *node {
+func (pages *Pages) formatInternalNode(pageBytes []byte, pm pageMetadata) *node {
 	n := node{}
 	n.pages = pages
 	offset := pageMetadataSize
 	// Loops over number of keys
-	for range pageMetadata.numEntries {
+	for range pm.numEntries {
 		offset = pages.formatInternalKey(&n, pageBytes, offset)
 	}
 	// Get last child. As one more children than keys
-	if pageMetadata.numEntries > 0 {
+	if pm.numEntries > 0 {
 		pages.formatChild(&n, pageBytes, offset)
 	}
 	return &n
@@ -102,7 +102,7 @@ func (pages *Pages) formatInternalKey(n *node, pageBytes []byte, offset int) int
 	return offset
 }
 
-func (pages *Pages) formatLeafNode(pageBytes []byte, pageMetadata pageMetadata) *node {
+func (pages *Pages) formatLeafNode(pageBytes []byte, pm pageMetadata) *node {
 	n := node{}
 	n.leaf = true
 	offset := pageMetadataSize
@@ -111,7 +111,7 @@ func (pages *Pages) formatLeafNode(pageBytes []byte, pageMetadata pageMetadata) 
 	n.Next = pages.pageIDToNode[n.NextID]
 	n.pages = pages
 
-	for range pageMetadata.numEntries {
+	for range pm.numEntries {
 		offset = formatLeafKey(&n, pageBytes, offset)
 	}
 	return &n
@@ -166,14 +166,14 @@ func createLeafNodeBuf(n *node) []byte {
 		offset = addLeafKey(buf, keyLocation.PageID, keyLocation.SlotID, offset, key)
 	}
 
-	pageMetadata := pageMetadata{
+	pm := pageMetadata{
 		pageType:       LeafPage,
 		pageID:         n.pageID,
 		numEntries:     uint16(len(n.keys)),
 		freeSpaceStart: uint16(offset),
 		freeSpaceEnd:   pageSize,
 	}
-	metadataBuf := createMetadataBuffer(pageMetadata)
+	metadataBuf := createMetadataBuffer(pm)
 	copy(buf[pageStart:pageMetadataSize], metadataBuf)
 	return buf
 }

@@ -43,34 +43,34 @@ func (db *DB) AddToPage(key string, value string) error {
 	}
 
 	// Get database metadata
-	metadata, err := db.Pages.readDBMetadata()
+	m, err := db.Pages.readDBMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to read database metadata: %w", err)
 	}
-	pageID := metadata.lastDataPage
+	pageID := m.lastDataPage
 
 	// Calculate required space
 	dataSize := keyLenStorageSize + len(key) + valueLenStorageSize + len(value)
-	pageMetadata, err := db.Pages.readPageMetadata(pageID)
+	pm, err := db.Pages.readPageMetadata(pageID)
 	if err != nil {
 		return fmt.Errorf("failed to read pages metadata: %w", err)
 	}
 
 	// Validate capacity
-	freeSpace := int(pageMetadata.freeSpaceEnd - pageMetadata.freeSpaceStart)
+	freeSpace := int(pm.freeSpaceEnd - pm.freeSpaceStart)
 	requiredSpace := slotSize + dataSize
 	needsNewPage := freeSpace < requiredSpace
 	if needsNewPage {
-		pageMetadata, pageID, err = db.Pages.ensureWritablePage()
+		pm, pageID, err = db.Pages.ensureWritablePage()
 		if err != nil {
 			return fmt.Errorf("failed ensure writable data page: %w", err)
 		}
-		freeSpace = int(pageMetadata.freeSpaceEnd - pageMetadata.freeSpaceStart)
+		freeSpace = int(pm.freeSpaceEnd - pm.freeSpaceStart)
 	}
 
 	// Compute offsets
-	slotOffset := getSlotOffset(pageMetadata)
-	newDataOffset := getDataOffset(freeSpace, dataSize, pageMetadata.numEntries)
+	slotOffset := getSlotOffset(pm)
+	newDataOffset := getDataOffset(freeSpace, dataSize, pm.numEntries)
 
 	// Compute buffers
 	slotBuf := getSlotBuffer(uint16(newDataOffset), uint16(dataSize), slotNormal)
@@ -85,15 +85,15 @@ func (db *DB) AddToPage(key string, value string) error {
 	}
 
 	// Add to b+tree
-	if err := db.Insert(key, pageID, pageMetadata.numEntries); err != nil {
+	if err := db.Insert(key, pageID, pm.numEntries); err != nil {
 		return fmt.Errorf("failed insert into b+tree: %w", err)
 	}
 
 	// Update page metadata
-	pageMetadata.numEntries += 1
-	pageMetadata.freeSpaceStart += uint16(slotSize)
-	pageMetadata.freeSpaceEnd -= uint16(dataSize)
-	if err := db.Pages.updatePageMetadata(pageMetadata); err != nil {
+	pm.numEntries += 1
+	pm.freeSpaceStart += uint16(slotSize)
+	pm.freeSpaceEnd -= uint16(dataSize)
+	if err := db.Pages.updatePageMetadata(pm); err != nil {
 		return fmt.Errorf("failed to update page metadata: %w", err)
 	}
 	if db.isManaulTX {

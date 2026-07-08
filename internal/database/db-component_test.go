@@ -2,13 +2,17 @@ package database
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 )
 
-// Low key jsut going to try and do the unit / componentm tests to start of with not i/o disk stuff
-
-// Lets just do the fomrating and unformating pages tonight
-// Maybe later try and add some edge cases on
+type nodeParams struct {
+	isLeaf     bool
+	numKeys    int
+	startIndex int
+	keyStep    int
+	pageID     uint32
+}
 
 type splitTestCase struct {
 	name          string
@@ -19,10 +23,18 @@ type splitTestCase struct {
 	inputR        *node
 }
 
-func Test_convertFormatInternalNode(t *testing.T) {
-	numOfKey := 10
-	n := genInternalNode(numOfKey, 0)
-	wantN := n
+type addChildrenTestCase struct {
+	name   string
+	inputN *node
+	inputL *node
+	inputR *node
+	i      int
+	wantN  *node
+}
+
+func TestComponent_convertFormatInternalNode(t *testing.T) {
+	n := genInternalNode(nodeParams{isLeaf: false, numKeys: 10, startIndex: 0, keyStep: 1})
+	wantN := n.cloneNode()
 
 	pages := Pages{
 		pageIDToNode: map[uint32]*node{},
@@ -35,10 +47,9 @@ func Test_convertFormatInternalNode(t *testing.T) {
 	helperCheckChildern(t, gotN, wantN)
 }
 
-func Test_convertFormatLeafNode(t *testing.T) {
-	numOfKey := 10
-	n := genLeafNode(numOfKey, 0)
-	wantN := n
+func TestComponent_convertFormatLeafNode(t *testing.T) {
+	n := genLeafNode(nodeParams{isLeaf: true, numKeys: 10, startIndex: 0, keyStep: 1})
+	wantN := n.cloneNode()
 
 	pages := Pages{
 		pageIDToNode: map[uint32]*node{},
@@ -54,19 +65,17 @@ func Test_convertFormatLeafNode(t *testing.T) {
 	helperCheckKeyLocations(t, gotN, wantN)
 }
 
-// Here I should do some test cases where I spit leaf and internal node I think
-func Test_computeSplit(t *testing.T) {
-	testcases := []splitTestCase{
+func TestUnit_computeSplit(t *testing.T) {
+	tcs := []splitTestCase{
 		makeSplitTestCase("leaf even keys", true, 200),
 		makeSplitTestCase("leaf odd keys", true, 199),
 		makeSplitTestCase("internal even keys", false, 200),
 		makeSplitTestCase("internal odd keys", false, 199),
 	}
 	// Make a for loop here
-	for _, tc := range testcases {
+	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			gotMiddleKey := computeSplit(tc.inputL, tc.inputR)
-			// Note input are pointer so value got updated
 			gotL := tc.inputL
 			gotR := tc.inputR
 
@@ -94,26 +103,112 @@ func Test_computeSplit(t *testing.T) {
 	}
 }
 
+func TestUnit_addChildern(t *testing.T) {
+	tcs := makeAddChildrenTestCases()
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.inputN.addChildern(tc.inputL, tc.inputR, tc.i)
+			gotN := tc.inputN
+			helperCheckNode(t, gotN, tc.wantN)
+			helperCheckChildern(t, gotN, tc.wantN)
+		})
+	}
+}
+
+// Creates test cases of add children into a parent and start, middle and end
+func makeAddChildrenTestCases() []addChildrenTestCase {
+	tcs := []addChildrenTestCase{}
+
+	start := 20
+	step := 20
+	lPageID := uint32(2)
+	rPageID := uint32(3)
+
+	names := []string{"children at start", "children at middle", "children at end"}
+	iValues := []int{0, 5, 9}
+
+	for j, name := range names {
+		i := iValues[j]
+		lStart := (i-1)*step + start
+		rStart := i*step + start
+
+		n := genInternalNode(nodeParams{numKeys: 11, startIndex: start, keyStep: 20, pageID: 1})
+		l := genInternalNode(nodeParams{numKeys: 10, startIndex: lStart, keyStep: 1, pageID: lPageID})
+		r := genInternalNode(nodeParams{numKeys: 10, startIndex: rStart, keyStep: 1, pageID: rPageID})
+
+		// Setup leaf child
+		n.childPageIDs[i] = l.pageID
+		n.children[i] = l
+
+		// Add right child for want
+		wantN := n.cloneNode()
+		wantN.childPageIDs[i] = lPageID
+		wantN.childPageIDs[i+1] = rPageID
+		wantN.children[i] = l
+		wantN.children[i+1] = r
+
+		// Remove right child for input
+		n.childPageIDs = slices.Delete(n.childPageIDs, i+1, i+2)
+		n.children = slices.Delete(n.children, i+1, i+2)
+
+		tc := addChildrenTestCase{
+			name:   name,
+			inputN: n,
+			inputL: l,
+			inputR: r,
+			i:      i,
+			wantN:  wantN,
+		}
+		tcs = append(tcs, tc)
+	}
+	emptyParentTC := makeAddChildrenEmptyParent()
+	tcs = append(tcs, emptyParentTC)
+	return tcs
+}
+
+// Cretes the test cases when two children get into a new root node
+func makeAddChildrenEmptyParent() addChildrenTestCase {
+	// An empty parent
+	n := genInternalNode(nodeParams{numKeys: 1, startIndex: 20})
+	l := genInternalNode(nodeParams{numKeys: 10, startIndex: 0, keyStep: 1, pageID: 2})
+	r := genInternalNode(nodeParams{numKeys: 10, startIndex: 20, keyStep: 1, pageID: 3})
+	n.childPageIDs = []uint32{}
+	n.children = []*node{}
+
+	// Want
+	wantN := n.cloneNode()
+	wantN.childPageIDs = []uint32{2, 3}
+	wantN.children = []*node{l, r}
+
+	return addChildrenTestCase{
+		name:   "empty parent",
+		inputN: n,
+		inputL: l,
+		inputR: r,
+		i:      0,
+		wantN:  wantN,
+	}
+}
+
+// I don't like this isLeaf thing happening
 func makeSplitTestCase(name string, isLeaf bool, overflowingKeys int) splitTestCase {
-	noKeys := 0
 	rPageID := uint32(4)
 
 	keysAfterL := overflowingKeys / 2
-	lStart := 0
 	keysAfterR := overflowingKeys - keysAfterL
 	rStart := keysAfterL
 
-	wantL := genNode(isLeaf, keysAfterL, lStart)
+	wantL := genNode(nodeParams{isLeaf: isLeaf, numKeys: keysAfterL, startIndex: 0, keyStep: 1})
 
 	// Leaf nodes have linked list
 	if isLeaf {
 		wantL.NextID = rPageID
 	}
-	wantR := genNode(isLeaf, keysAfterR, rStart)
+	wantR := genNode(nodeParams{isLeaf: isLeaf, numKeys: keysAfterR, startIndex: rStart, keyStep: 1})
 	wantR.pageID = rPageID
 
-	inputL := genNode(isLeaf, overflowingKeys, 0)
-	inputR := genNode(isLeaf, noKeys, 0)
+	inputL := genNode(nodeParams{isLeaf: isLeaf, numKeys: overflowingKeys, startIndex: 0, keyStep: 1})
+	inputR := genNode(nodeParams{isLeaf: isLeaf, numKeys: 0, startIndex: 0, keyStep: 1})
 	inputR.pageID = uint32(4)
 
 	wantMiddleKey := wantR.keys[0]
@@ -136,6 +231,7 @@ func makeSplitTestCase(name string, isLeaf bool, overflowingKeys int) splitTestC
 
 // Checks shared node attributes; got vs want
 func helperCheckNode(t *testing.T, gotN *node, wantN *node) {
+	t.Helper()
 	if gotN.pageID != wantN.pageID {
 		t.Errorf("incorrect pageID: got %d, want %d", gotN.pageID, wantN.pageID)
 	}
@@ -153,6 +249,7 @@ func helperCheckNode(t *testing.T, gotN *node, wantN *node) {
 }
 
 func helperCheckKeyLocations(t *testing.T, gotN *node, wantN *node) {
+	t.Helper()
 	// Check the size against each other
 	if len(gotN.keyLocations) != len(wantN.keyLocations) {
 		t.Fatalf("incorrect key location length: got %d, want %d", len(gotN.keyLocations), len(wantN.keyLocations))
@@ -176,6 +273,8 @@ func helperCheckKeyLocations(t *testing.T, gotN *node, wantN *node) {
 }
 
 func helperCheckChildern(t *testing.T, gotN *node, wantN *node) {
+	t.Helper()
+	//t.Helper()
 	if len(gotN.childPageIDs) != len(wantN.childPageIDs) {
 		t.Fatalf("incorrect child page id length: got %d, want %d", len(gotN.childPageIDs), len(wantN.childPageIDs))
 	}
@@ -193,43 +292,75 @@ func helperCheckChildern(t *testing.T, gotN *node, wantN *node) {
 	}
 }
 
+// Creates new memory addresses so node is copied
+func (n *node) cloneNode() *node {
+	c := *n
+	c.keys = slices.Clone(n.keys)
+	if c.leaf {
+		for i, keyLocation := range n.keyLocations {
+			if keyLocation == nil {
+				continue
+			}
+			copiedKeyLocation := *keyLocation
+			c.keyLocations[i] = &copiedKeyLocation
+		}
+	} else {
+		c.childPageIDs = slices.Clone(n.childPageIDs)
+		copiedSlice := n.children
+		c.children = copiedSlice
+		for i, child := range n.children {
+			if child == nil {
+				continue
+			}
+			copiedChild := *child
+			c.children[i] = &copiedChild
+		}
+	}
+	return &c
+}
+
 // Generates a fake internal node
-func genInternalNode(numKeys int, startNum int) *node {
-	numChildren := numKeys + 1
-	if numKeys == 0 {
+func genInternalNode(np nodeParams) *node {
+	defaulPageID := uint32(6)
+	numChildren := np.numKeys + 1
+	if np.numKeys == 0 {
 		numChildren--
 	}
 
-	defaulPageID := uint32(6)
+	if np.pageID == uint32(0) {
+		np.pageID = defaulPageID
+	}
+
 	// Children are lazy loaded
 	children := make([]*node, numChildren)
 	n := &node{
-		keys:         genKeys(numKeys, startNum),
-		childPageIDs: genChildPageIDs(numChildren, startNum),
+		keys:         genKeys(np.numKeys, np.startIndex, np.keyStep),
+		childPageIDs: genChildPageIDs(numChildren, np.startIndex),
 		children:     children,
-		pageID:       defaulPageID,
+		pageID:       np.pageID,
 		leaf:         false,
 	}
 	return n
 }
 
-func genNode(leaf bool, numKeys int, startNum int) *node {
-	if leaf {
-		return genLeafNode(numKeys, startNum)
+// Note if I keep add another argument should maybe make a struct
+func genNode(np nodeParams) *node {
+	if np.isLeaf {
+		return genLeafNode(np)
 	} else {
-		return genInternalNode(numKeys, startNum)
+		return genInternalNode(np)
 	}
 }
 
 // Generates a fake leaf node
-func genLeafNode(numKeys int, startNum int) *node {
+func genLeafNode(np nodeParams) *node {
 	// Undefined next page (no next page)
 	defaultPageID := uint32(3)
 	var nextPageID uint32 = 0
 
 	n := &node{
-		keys:         genKeys(numKeys, startNum),
-		keyLocations: genKeylocation(numKeys, startNum),
+		keys:         genKeys(np.numKeys, np.startIndex, np.keyStep),
+		keyLocations: genKeylocation(np.numKeys, np.startIndex),
 		NextID:       nextPageID,
 		pageID:       defaultPageID,
 		leaf:         true,
@@ -238,10 +369,11 @@ func genLeafNode(numKeys int, startNum int) *node {
 }
 
 // Generates fake keys
-func genKeys(numKeys int, startNum int) []string {
+func genKeys(numKeys int, startNum int, step int) []string {
 	keys := make([]string, numKeys)
 	for i := range numKeys {
-		keys[i] = fmt.Sprintf("entry%04d", i+startNum)
+		value := i*step + startNum
+		keys[i] = fmt.Sprintf("entry%04d", value)
 	}
 	return keys
 }
