@@ -69,9 +69,8 @@ func (db *DB) Insert(key string, pageID uint32, slotID uint16) error {
 		if err != nil {
 			return fmt.Errorf("failed to create new root node: %w", err)
 		}
-		if _, _, _, err := newRoot.addKey(*splitResult, left, right, nil); err != nil {
-			return fmt.Errorf("failed to add key to new root node: %w", err)
-		}
+		newRoot.addKey(splitResult, left, right, nil)
+
 		if err := newRoot.writeNodeToPage(); err != nil {
 			return fmt.Errorf("failed to add new key page: %w", err)
 		}
@@ -120,75 +119,35 @@ func (r *node) findNode(key string) (*node, bool, error) {
 Recursively calls itself to create a call stack,
 adds key at leaf, and works back up splitting if needed
 */
-func (n *node) insert(key string, keyLocation *KeyLocation) (*string, *node, *node, error) {
+func (n *node) insert(key string, kl *KeyLocation) (*string, *node, *node, error) {
 	if n.leaf {
-		splitResult, left, right, err := n.addKey(key, nil, nil, keyLocation)
-		if err != nil {
-
-		}
-		if splitResult == nil {
-			if err := n.writeNodeToPage(); err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to write new new to page: %w", err)
-			}
-		}
-		return splitResult, left, right, nil
+		return n.performInsert(&key, nil, nil, kl)
 	}
 	// Internal node
 	child, _, _ := n.findChild(key)
-	splitResult, left, right, err := child.insert(key, keyLocation)
+	splitResult, left, right, err := child.insert(key, kl)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to insert key: %w", err)
 	}
-	return n.performSplit(splitResult, left, right)
-}
 
-// Perform node split into two nodes if need
-func (n *node) performSplit(splitResult *string, left *node, right *node) (*string, *node, *node, error) {
+	// Not nil means n will update as splitResult will be add as a key
 	if splitResult == nil {
 		if err := n.writeNodeToPage(); err != nil {
 			return nil, nil, nil, fmt.Errorf("failed write node to disk: %w", err)
 		}
 		return nil, nil, nil, nil
 	}
-	splitResult, left, right, err := n.addKey(*splitResult, left, right, nil)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if splitResult == nil {
-		if err := n.writeNodeToPage(); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed write node to disk: %w", err)
-		}
-	}
-	return splitResult, left, right, nil
+	return n.performInsert(splitResult, left, right, nil)
 }
 
-func (n *node) addKey(key string, left *node, right *node, keyLocation *KeyLocation) (*string, *node, *node, error) {
-	var splitResult *string
+// Adds key and split into two different nodes if need
+func (n *node) performInsert(key *string, left *node, right *node, kl *KeyLocation) (*string, *node, *node, error) {
 	var err error
-	// Checks if key in node already
-	if n.leaf && slices.Contains(n.keys, key) {
-		return nil, nil, nil, nil
-	}
+	var splitResult *string
 
-	i := sort.Search(len(n.keys), func(i int) bool {
-		return strings.Compare(key, n.keys[i]) < 0
-	})
-
-	// Add key
-	n.keys = append(n.keys, "")
-	copy(n.keys[i+1:], n.keys[i:])
-	n.keys[i] = key
-
-	// Add key location
-	if n.leaf {
-		n.keyLocations = append(n.keyLocations, nil)
-		copy(n.keyLocations[i+1:], n.keyLocations[i:])
-		n.keyLocations[i] = keyLocation
-	}
-
-	if left != nil && right != nil {
-		n.addChildern(left, right, i)
-	}
+	n.addKey(key, left, right, kl)
+	left = nil
+	right = nil
 
 	if n.isOverflow() {
 		splitResult, left, right, err = n.split()
@@ -197,7 +156,40 @@ func (n *node) addKey(key string, left *node, right *node, keyLocation *KeyLocat
 		}
 	}
 
+	if splitResult == nil {
+		if err := n.writeNodeToPage(); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed write node to disk: %w", err)
+		}
+	}
 	return splitResult, left, right, nil
+}
+
+func (n *node) addKey(key *string, left *node, right *node, kl *KeyLocation) {
+	// Checks if key in node already
+	if n.leaf && slices.Contains(n.keys, *key) {
+		return
+	}
+
+	i := sort.Search(len(n.keys), func(i int) bool {
+		return strings.Compare(*key, n.keys[i]) < 0
+	})
+
+	// Add key
+	n.keys = append(n.keys, "")
+	copy(n.keys[i+1:], n.keys[i:])
+	n.keys[i] = *key
+
+	// Add key location
+	if n.leaf {
+		n.keyLocations = append(n.keyLocations, nil)
+		copy(n.keyLocations[i+1:], n.keyLocations[i:])
+		n.keyLocations[i] = kl
+		kl = nil
+	}
+
+	if left != nil && right != nil {
+		n.addChildern(left, right, i)
+	}
 }
 
 // Adds left and right node into the parent children after a split where old child was
@@ -219,26 +211,23 @@ func (n *node) addChildern(left *node, right *node, i int) {
 	n.childPageIDs = append(n.childPageIDs, 0)
 	copy(n.childPageIDs[i+2:], n.childPageIDs[i+1:])
 	n.childPageIDs[i+1] = right.pageID
-
-	left = nil
-	right = nil
 }
 
 // splits node into two new nodes
 func (n *node) split() (*string, *node, *node, error) {
-	right, err := n.pages.newNode(n.leaf)
+	newN, err := n.pages.newNode(n.leaf)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create new node: %w", err)
 	}
-	middlekey := computeSplit(n, right)
+	middlekey := computeSplit(n, newN)
 	// Write node to disk
 	if err := n.writeNodeToPage(); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed write left spilt node to disk: %w", err)
 	}
-	if err := right.writeNodeToPage(); err != nil {
+	if err := newN.writeNodeToPage(); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed write right spilt node to disk: %w", err)
 	}
-	return middlekey, n, right, nil
+	return middlekey, n, newN, nil
 }
 
 func computeSplit(l *node, r *node) *string {

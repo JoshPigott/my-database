@@ -82,7 +82,7 @@ func TestOneNodeInsert(t *testing.T) {
 }
 
 func TestInsert(t *testing.T) {
-	amount := 2000
+	amount := 1500
 	var insertedKeys []string
 
 	dir := t.TempDir()

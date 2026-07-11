@@ -10,7 +10,7 @@ type nodeParams struct {
 	isLeaf     bool
 	numKeys    int
 	startIndex int
-	keyStep    int
+	step       int
 	pageID     uint32
 }
 
@@ -32,8 +32,18 @@ type addChildrenTestCase struct {
 	wantN  *node
 }
 
-func TestComponent_convertFormatInternalNode(t *testing.T) {
-	n := genInternalNode(nodeParams{isLeaf: false, numKeys: 10, startIndex: 0, keyStep: 1})
+type addKeyTestCase struct {
+	name     string
+	inputN   *node
+	inputKey string
+	inputL   *node
+	inputR   *node
+	inputKL  *KeyLocation
+	wantN    *node
+}
+
+func TestUnit_convertFormatInternalNode(t *testing.T) {
+	n := genInternalNode(nodeParams{isLeaf: false, numKeys: 10, startIndex: 0, step: 1})
 	wantN := n.cloneNode()
 
 	pages := Pages{
@@ -47,8 +57,8 @@ func TestComponent_convertFormatInternalNode(t *testing.T) {
 	helperCheckChildern(t, gotN, wantN)
 }
 
-func TestComponent_convertFormatLeafNode(t *testing.T) {
-	n := genLeafNode(nodeParams{isLeaf: true, numKeys: 10, startIndex: 0, keyStep: 1})
+func TestUnit_convertFormatLeafNode(t *testing.T) {
+	n := genLeafNode(nodeParams{isLeaf: true, numKeys: 10, startIndex: 0, step: 1})
 	wantN := n.cloneNode()
 
 	pages := Pages{
@@ -72,14 +82,12 @@ func TestUnit_computeSplit(t *testing.T) {
 		makeSplitTestCase("internal even keys", false, 200),
 		makeSplitTestCase("internal odd keys", false, 199),
 	}
-	// Make a for loop here
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			gotMiddleKey := computeSplit(tc.inputL, tc.inputR)
 			gotL := tc.inputL
 			gotR := tc.inputR
 
-			// Do some checking
 			helperCheckNode(t, gotL, tc.wantL)
 			helperCheckNode(t, gotR, tc.wantR)
 
@@ -103,6 +111,7 @@ func TestUnit_computeSplit(t *testing.T) {
 	}
 }
 
+// Test if the right and left children get added right after a split
 func TestUnit_addChildern(t *testing.T) {
 	tcs := makeAddChildrenTestCases()
 	for _, tc := range tcs {
@@ -115,6 +124,77 @@ func TestUnit_addChildern(t *testing.T) {
 	}
 }
 
+func TestUnit_addKey(t *testing.T) {
+	tcs := makeAddKeyInternalTestCases()
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.inputN.addKey(&tc.inputKey, tc.inputL, tc.inputR, tc.inputKL)
+
+			helperCheckNode(t, tc.inputN, tc.wantN)
+			if tc.inputN.leaf {
+				helperCheckKeyLocations(t, tc.inputN, tc.wantN)
+			} else {
+				helperCheckChildern(t, tc.inputN, tc.wantN)
+			}
+		})
+	}
+}
+
+func makeAddKeyInternalTestCases() []addKeyTestCase {
+	tcs := []addKeyTestCase{}
+
+	tcs = append(tcs, addKeyTestCase{
+		name:     "key in slice already",
+		inputN:   genLeafNode(nodeParams{numKeys: 5, step: 1}),
+		inputKey: "entry0001",
+		wantN:    genLeafNode(nodeParams{numKeys: 5, step: 1}),
+	})
+	tcs = append(tcs, addKeyTestCase{
+		name:     "leaf start",
+		inputN:   genLeafNode(nodeParams{numKeys: 5, startIndex: 5, step: 1}),
+		inputKey: "entry0004",
+		inputKL:  newKeyLocation(4, 4),
+		wantN:    genLeafNode(nodeParams{numKeys: 6, startIndex: 4, step: 1}),
+	})
+	tcs = append(tcs, addKeyTestCase{
+		name:     "leaf middle",
+		inputN:   genLeafNode(nodeParams{numKeys: 2, step: 2}),
+		inputKey: "entry0001",
+		wantN:    genLeafNode(nodeParams{numKeys: 3, step: 1}),
+		inputKL:  newKeyLocation(1, 1),
+	})
+	tcs = append(tcs, addKeyTestCase{
+		name:     "leaf end",
+		inputN:   genLeafNode(nodeParams{numKeys: 5, step: 1}),
+		inputKey: "entry0005",
+		wantN:    genLeafNode(nodeParams{numKeys: 6, step: 1}),
+		inputKL:  newKeyLocation(5, 5),
+	})
+	tcs = append(tcs, addKeyTestCase{
+		name:     "leaf end",
+		inputN:   genLeafNode(nodeParams{numKeys: 5, step: 1}),
+		inputKey: "entry0005",
+		wantN:    genLeafNode(nodeParams{numKeys: 6, step: 1}),
+		inputKL:  newKeyLocation(5, 5),
+	})
+
+	addChildrenTCs := makeAddChildrenTestCases()
+	for _, tc := range addChildrenTCs {
+		separatorKey := tc.inputN.keys[tc.i]
+		tc.inputN.keys = slices.Delete(tc.inputN.keys, tc.i, tc.i+1)
+
+		tcs = append(tcs, addKeyTestCase{
+			name:     tc.name,
+			inputKey: separatorKey,
+			inputN:   tc.inputN,
+			inputL:   tc.inputL,
+			inputR:   tc.inputR,
+			wantN:    tc.wantN,
+		})
+	}
+	return tcs
+}
+
 // Creates test cases of add children into a parent and start, middle and end
 func makeAddChildrenTestCases() []addChildrenTestCase {
 	tcs := []addChildrenTestCase{}
@@ -125,16 +205,16 @@ func makeAddChildrenTestCases() []addChildrenTestCase {
 	rPageID := uint32(3)
 
 	names := []string{"children at start", "children at middle", "children at end"}
-	iValues := []int{0, 5, 9}
+	iValues := []int{0, 5, 10}
 
 	for j, name := range names {
 		i := iValues[j]
 		lStart := (i-1)*step + start
 		rStart := i*step + start
 
-		n := genInternalNode(nodeParams{numKeys: 11, startIndex: start, keyStep: 20, pageID: 1})
-		l := genInternalNode(nodeParams{numKeys: 10, startIndex: lStart, keyStep: 1, pageID: lPageID})
-		r := genInternalNode(nodeParams{numKeys: 10, startIndex: rStart, keyStep: 1, pageID: rPageID})
+		n := genInternalNode(nodeParams{numKeys: 11, startIndex: start, step: 20, pageID: 1})
+		l := genInternalNode(nodeParams{numKeys: 10, startIndex: lStart, step: 1, pageID: lPageID})
+		r := genInternalNode(nodeParams{numKeys: 10, startIndex: rStart, step: 1, pageID: rPageID})
 
 		// Setup leaf child
 		n.childPageIDs[i] = l.pageID
@@ -170,8 +250,8 @@ func makeAddChildrenTestCases() []addChildrenTestCase {
 func makeAddChildrenEmptyParent() addChildrenTestCase {
 	// An empty parent
 	n := genInternalNode(nodeParams{numKeys: 1, startIndex: 20})
-	l := genInternalNode(nodeParams{numKeys: 10, startIndex: 0, keyStep: 1, pageID: 2})
-	r := genInternalNode(nodeParams{numKeys: 10, startIndex: 20, keyStep: 1, pageID: 3})
+	l := genInternalNode(nodeParams{numKeys: 10, startIndex: 0, step: 1, pageID: 2})
+	r := genInternalNode(nodeParams{numKeys: 10, startIndex: 20, step: 1, pageID: 3})
 	n.childPageIDs = []uint32{}
 	n.children = []*node{}
 
@@ -198,17 +278,17 @@ func makeSplitTestCase(name string, isLeaf bool, overflowingKeys int) splitTestC
 	keysAfterR := overflowingKeys - keysAfterL
 	rStart := keysAfterL
 
-	wantL := genNode(nodeParams{isLeaf: isLeaf, numKeys: keysAfterL, startIndex: 0, keyStep: 1})
+	wantL := genNode(nodeParams{isLeaf: isLeaf, numKeys: keysAfterL, startIndex: 0, step: 1})
 
 	// Leaf nodes have linked list
 	if isLeaf {
 		wantL.NextID = rPageID
 	}
-	wantR := genNode(nodeParams{isLeaf: isLeaf, numKeys: keysAfterR, startIndex: rStart, keyStep: 1})
+	wantR := genNode(nodeParams{isLeaf: isLeaf, numKeys: keysAfterR, startIndex: rStart, step: 1})
 	wantR.pageID = rPageID
 
-	inputL := genNode(nodeParams{isLeaf: isLeaf, numKeys: overflowingKeys, startIndex: 0, keyStep: 1})
-	inputR := genNode(nodeParams{isLeaf: isLeaf, numKeys: 0, startIndex: 0, keyStep: 1})
+	inputL := genNode(nodeParams{isLeaf: isLeaf, numKeys: overflowingKeys, startIndex: 0, step: 1})
+	inputR := genNode(nodeParams{isLeaf: isLeaf, numKeys: 0, startIndex: 0, step: 1})
 	inputR.pageID = uint32(4)
 
 	wantMiddleKey := wantR.keys[0]
@@ -334,7 +414,7 @@ func genInternalNode(np nodeParams) *node {
 	// Children are lazy loaded
 	children := make([]*node, numChildren)
 	n := &node{
-		keys:         genKeys(np.numKeys, np.startIndex, np.keyStep),
+		keys:         genKeys(np.numKeys, np.startIndex, np.step),
 		childPageIDs: genChildPageIDs(numChildren, np.startIndex),
 		children:     children,
 		pageID:       np.pageID,
@@ -359,8 +439,8 @@ func genLeafNode(np nodeParams) *node {
 	var nextPageID uint32 = 0
 
 	n := &node{
-		keys:         genKeys(np.numKeys, np.startIndex, np.keyStep),
-		keyLocations: genKeylocation(np.numKeys, np.startIndex),
+		keys:         genKeys(np.numKeys, np.startIndex, np.step),
+		keyLocations: genKeylocation(np.numKeys, np.startIndex, np.step),
 		NextID:       nextPageID,
 		pageID:       defaultPageID,
 		leaf:         true,
@@ -379,13 +459,13 @@ func genKeys(numKeys int, startNum int, step int) []string {
 }
 
 // Generates fake keys locations
-func genKeylocation(numkeyLocations int, startNum int) []*KeyLocation {
+func genKeylocation(numkeyLocations int, startNum int, step int) []*KeyLocation {
 	keyLocations := make([]*KeyLocation, numkeyLocations)
 
 	for i := range numkeyLocations {
 		keyLocation := KeyLocation{
-			PageID: uint32(i + startNum),
-			SlotID: uint16(i + startNum),
+			PageID: uint32((i * step) + startNum),
+			SlotID: uint16((i * step) + startNum),
 		}
 		keyLocations[i] = &keyLocation
 	}

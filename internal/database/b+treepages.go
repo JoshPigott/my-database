@@ -283,6 +283,7 @@ func (n *node) needsRightRedistribution(i int) bool {
 	return totalSize > pageSize
 }
 
+// Works out the size of the node in bytes
 func (n *node) getDataSize() int {
 	currSize := pageMetadataSize
 	if n.leaf {
