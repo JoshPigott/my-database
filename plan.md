@@ -38,14 +38,8 @@ Phase 6 — Simple query engine
 Phase 7 — Transactions (hard but important)
 Phase 8 — Indexes
 
-
-Readme
-Next thing to work on
-
-Lets make data page cache
-I think I would need a linked list of the last time a page was used
-moveToFront for cache like exct funcation
-
-I feel like the DB and Page struct could be refacted
-
-I will change the pageMetadata to like pm and databaseMetadata to dm
+I am making test atm
+To see coverage
+go test -v -run "TestUnit|TestComponent" "-coverprofile=cover.out" ./internal/database/                                     
+And 
+go tool cover "-html=cover.out"   
