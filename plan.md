@@ -43,3 +43,8 @@ To see coverage
 go test -v -run "TestUnit|TestComponent" "-coverprofile=cover.out" ./internal/database/                                     
 And 
 go tool cover "-html=cover.out"   
+
+
+I should be to test the redistribution are mergre like like the logic into compute funcaiotn and test that
+
+But i should still keep looking at the b+tree look for logic heavy areas that should be tested
