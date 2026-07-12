@@ -100,15 +100,19 @@ func (n *node) fixUnderflow(i int) error {
 }
 
 func (n *node) leftRedistribution(i int) error {
-	return n.redistribution(i, true)
+	withLeft := true
+	l, r := n.computeRedistribution(i, withLeft)
+	return n.writeRedistribution(l, r)
 }
 
 func (n *node) rightRedistribution(i int) error {
-	return n.redistribution(i, false)
+	withLeft := false
+	l, r := n.computeRedistribution(i, withLeft)
+	return n.writeRedistribution(l, r)
 }
 
 // Rewrites child and right child to have the a more even split of data
-func (n *node) redistribution(i int, withLeft bool) error {
+func (n *node) computeRedistribution(i int, withLeft bool) (*node, *node) { // I should test this
 	var l *node
 	var r *node
 	if withLeft {
@@ -173,32 +177,39 @@ func (n *node) redistribution(i int, withLeft bool) error {
 		l.childPageIDs = childPageIDs[:j+1]
 		r.childPageIDs = childPageIDs[j+1:]
 	}
+	return l, r
+}
 
-	// Writes nodes to disk
+// Writes parent and left and right sibling nodes to disk
+func (n *node) writeRedistribution(l *node, r *node) error {
 	if err := n.writeNodeToPage(); err != nil {
 		return fmt.Errorf("failed to write parent node to disk: %w", err)
 	}
-	if err := r.writeNodeToPage(); err != nil {
-		return fmt.Errorf("failed to write right sibling to disk: %w", err)
-	}
 	if err := l.writeNodeToPage(); err != nil {
 		return fmt.Errorf("failed to write left sibling to disk: %w", err)
+	}
+	if err := r.writeNodeToPage(); err != nil {
+		return fmt.Errorf("failed to write right sibling to disk: %w", err)
 	}
 	return nil
 }
 
 // Merges child node with their left sibling node
 func (n *node) mergeWithLeft(i int) error {
-	return n.merge(i, true)
+	withLeft := true
+	l, r := n.computeMerge(i, withLeft)
+	return n.writeMerge(l, r)
 }
 
 // Merges child node with their right sibling node
 func (n *node) mergeWithRight(i int) error {
-	return n.merge(i, false)
+	withLeft := false
+	l, r := n.computeMerge(i, withLeft)
+	return n.writeMerge(l, r)
 }
 
 // Mergre two sibling node into one
-func (n *node) merge(i int, withLeft bool) error {
+func (n *node) computeMerge(i int, withLeft bool) (*node, *node) { // I should test this
 	var l *node
 	var r *node
 	var separatorKey string
@@ -247,7 +258,10 @@ func (n *node) merge(i int, withLeft bool) error {
 		n.children = append(n.children[:i+1], n.children[i+2:]...)
 		n.childPageIDs = append(n.childPageIDs[:i+1], n.childPageIDs[i+2:]...)
 	}
+	return l, r
+}
 
+func (n *node) writeMerge(l *node, r *node) error {
 	// Write nodes to disk
 	if err := n.writeNodeToPage(); err != nil {
 		return fmt.Errorf("failed to write parent node to disk: %w", err)
@@ -278,7 +292,7 @@ func (n *node) loadChildren(j int) error {
 }
 
 // Find the key index to split page as equal as possible in half
-func redistributionIndex(keys []string) int {
+func redistributionIndex(keys []string) int { // Should test this
 	shortestDistance := math.MaxInt
 	totalLen := 0
 	for _, key := range keys {

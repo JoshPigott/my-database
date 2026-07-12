@@ -42,6 +42,16 @@ type addKeyTestCase struct {
 	wantN    *node
 }
 
+type computeMergeTestCase struct {
+	name     string
+	inputN   *node
+	withLeft bool
+	isLeaf   bool
+	i        int
+	wantN    *node
+	wantL    *node
+}
+
 func TestUnit_convertFormatInternalNode(t *testing.T) {
 	n := genInternalNode(nodeParams{isLeaf: false, numKeys: 10, startIndex: 0, step: 1})
 	wantN := n.cloneNode()
@@ -54,7 +64,6 @@ func TestUnit_convertFormatInternalNode(t *testing.T) {
 	gotN := pages.formatNode(buf)
 
 	helperCheckNode(t, gotN, wantN)
-	helperCheckChildern(t, gotN, wantN)
 }
 
 func TestUnit_convertFormatLeafNode(t *testing.T) {
@@ -72,7 +81,6 @@ func TestUnit_convertFormatLeafNode(t *testing.T) {
 	if gotN.NextID != wantN.NextID {
 		t.Errorf("incorrect next page id: got %v, want %v", gotN.NextID, wantN.NextID)
 	}
-	helperCheckKeyLocations(t, gotN, wantN)
 }
 
 func TestUnit_computeSplit(t *testing.T) {
@@ -101,11 +109,6 @@ func TestUnit_computeSplit(t *testing.T) {
 				if gotR.NextID != tc.wantR.NextID {
 					t.Errorf("incorrect next page id: got %v, want %v", gotR.NextID, tc.wantR.NextID)
 				}
-				helperCheckKeyLocations(t, gotL, tc.wantL)
-				helperCheckKeyLocations(t, gotR, tc.wantR)
-			} else {
-				helperCheckChildern(t, gotL, tc.wantL)
-				helperCheckChildern(t, gotR, tc.wantR)
 			}
 		})
 	}
@@ -119,7 +122,6 @@ func TestUnit_addChildern(t *testing.T) {
 			tc.inputN.addChildern(tc.inputL, tc.inputR, tc.i)
 			gotN := tc.inputN
 			helperCheckNode(t, gotN, tc.wantN)
-			helperCheckChildern(t, gotN, tc.wantN)
 		})
 	}
 }
@@ -129,54 +131,134 @@ func TestUnit_addKey(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.inputN.addKey(&tc.inputKey, tc.inputL, tc.inputR, tc.inputKL)
-
 			helperCheckNode(t, tc.inputN, tc.wantN)
-			if tc.inputN.leaf {
-				helperCheckKeyLocations(t, tc.inputN, tc.wantN)
-			} else {
-				helperCheckChildern(t, tc.inputN, tc.wantN)
-			}
 		})
 	}
 }
 
-func makeAddKeyInternalTestCases() []addKeyTestCase {
-	tcs := []addKeyTestCase{}
+func TestUnit_computeMerge(t *testing.T) {
+	tcs := makeComputeMergeTestCases()
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			// Note: cheking r does not matter as it get delete after merge
+			gotL, _ := tc.inputN.computeMerge(tc.i, tc.withLeft)
+			gotN := tc.inputN
+			helperCheckNode(t, gotL, tc.wantL)
+			helperCheckNode(t, gotN, tc.wantN)
+		})
+	}
+}
 
-	tcs = append(tcs, addKeyTestCase{
-		name:     "key in slice already",
-		inputN:   genLeafNode(nodeParams{numKeys: 5, step: 1}),
-		inputKey: "entry0001",
-		wantN:    genLeafNode(nodeParams{numKeys: 5, step: 1}),
-	})
-	tcs = append(tcs, addKeyTestCase{
-		name:     "leaf start",
-		inputN:   genLeafNode(nodeParams{numKeys: 5, startIndex: 5, step: 1}),
-		inputKey: "entry0004",
-		inputKL:  newKeyLocation(4, 4),
-		wantN:    genLeafNode(nodeParams{numKeys: 6, startIndex: 4, step: 1}),
-	})
-	tcs = append(tcs, addKeyTestCase{
-		name:     "leaf middle",
-		inputN:   genLeafNode(nodeParams{numKeys: 2, step: 2}),
-		inputKey: "entry0001",
-		wantN:    genLeafNode(nodeParams{numKeys: 3, step: 1}),
-		inputKL:  newKeyLocation(1, 1),
-	})
-	tcs = append(tcs, addKeyTestCase{
-		name:     "leaf end",
-		inputN:   genLeafNode(nodeParams{numKeys: 5, step: 1}),
-		inputKey: "entry0005",
-		wantN:    genLeafNode(nodeParams{numKeys: 6, step: 1}),
-		inputKL:  newKeyLocation(5, 5),
-	})
-	tcs = append(tcs, addKeyTestCase{
-		name:     "leaf end",
-		inputN:   genLeafNode(nodeParams{numKeys: 5, step: 1}),
-		inputKey: "entry0005",
-		wantN:    genLeafNode(nodeParams{numKeys: 6, step: 1}),
-		inputKL:  newKeyLocation(5, 5),
-	})
+// Work out what node will look before and after merge test cases
+func makeComputeMergeTestCases() []computeMergeTestCase {
+	tcs := []computeMergeTestCase{
+		{name: "internal merge at start index with right node", withLeft: false, isLeaf: false, i: 0},
+		{name: "internal merge at middle index with right node", withLeft: false, isLeaf: false, i: 5},
+		{name: "internal merge at end index with right node", withLeft: false, isLeaf: false, i: 10},
+		{name: "internal merge at start index with left node", withLeft: true, isLeaf: false, i: 1},
+		{name: "internal merge at middle index with left node", withLeft: true, isLeaf: false, i: 5},
+		{name: "internal merge at end index with left node", withLeft: true, isLeaf: false, i: 11},
+
+		{name: "leaf merge at start index with right node", withLeft: false, isLeaf: true, i: 0},
+		{name: "leaf merge at middle index with right node", withLeft: false, isLeaf: true, i: 5},
+		{name: "leaf merge at end index with right node", withLeft: false, isLeaf: true, i: 10},
+		{name: "leaf merge at start index with left node", withLeft: true, isLeaf: true, i: 1},
+		{name: "leaf merge at middle index with left node", withLeft: true, isLeaf: true, i: 5},
+		{name: "leaf merge at end index with left node", withLeft: true, isLeaf: true, i: 11},
+	}
+
+	start := 10
+	bigStep := 10
+	smallStep := 1
+	lPageID := uint32(2)
+	rPageID := uint32(3)
+	rNextID := uint32(4)
+
+	for k := range tcs {
+		tc := &tcs[k]
+		j := tc.i
+		if tc.withLeft {
+			j = tc.i - 1
+		}
+
+		lStart := (j-1)*bigStep + start + (bigStep / 2)
+		rStart := (j)*bigStep + start
+		if !tc.isLeaf {
+			rStart += smallStep
+		}
+
+		tc.inputN = genInternalNode(nodeParams{numKeys: 11, startIndex: start, step: bigStep, pageID: 1})
+		l := genNode(nodeParams{isLeaf: tc.isLeaf, numKeys: (bigStep / 2), startIndex: lStart, step: smallStep, pageID: lPageID})
+		r := genNode(nodeParams{isLeaf: tc.isLeaf, numKeys: (bigStep / 2), startIndex: rStart, step: smallStep, pageID: rPageID})
+		if tc.isLeaf {
+			r.NextID = rNextID
+		}
+
+		// Setup leaf child
+		tc.inputN.childPageIDs[j] = l.pageID
+		tc.inputN.children[j] = l
+
+		// Setup right child
+		tc.inputN.childPageIDs[j+1] = r.pageID
+		tc.inputN.children[j+1] = r
+
+		// Add right child for want
+		tc.wantN = tc.inputN.cloneNode()
+		tc.wantN.childPageIDs[j] = lPageID
+		tc.wantN.childPageIDs[j+1] = rPageID
+		tc.wantN.children[j] = l
+		tc.wantN.children[j+1] = r
+
+		// Remove separtor key
+		tc.wantN.keys = slices.Delete(tc.wantN.keys, j, j+1)
+
+		// Delete right child
+		tc.wantN.children = slices.Delete(tc.wantN.children, j+1, j+2)
+		tc.wantN.childPageIDs = slices.Delete(tc.wantN.childPageIDs, j+1, j+2)
+
+		wantLKeyNum := bigStep
+		// In internal mergre separtor key comes down
+		if !tc.isLeaf {
+			wantLKeyNum++
+		}
+		tc.wantL = genNode(nodeParams{isLeaf: tc.isLeaf, numKeys: wantLKeyNum, startIndex: lStart, step: 1, pageID: lPageID})
+		if tc.isLeaf {
+			tc.wantL.NextID = rNextID
+		}
+	}
+	return tcs
+}
+
+func makeAddKeyInternalTestCases() []addKeyTestCase {
+	tcs := []addKeyTestCase{
+		{
+			name:     "key in slice already",
+			inputN:   genLeafNode(nodeParams{numKeys: 5, step: 1}),
+			inputKey: "entry0001",
+			wantN:    genLeafNode(nodeParams{numKeys: 5, step: 1}),
+		},
+		{
+			name:     "leaf start",
+			inputN:   genLeafNode(nodeParams{numKeys: 5, startIndex: 5, step: 1}),
+			inputKey: "entry0004",
+			inputKL:  newKeyLocation(4, 4),
+			wantN:    genLeafNode(nodeParams{numKeys: 6, startIndex: 4, step: 1}),
+		},
+		{
+			name:     "leaf middle",
+			inputN:   genLeafNode(nodeParams{numKeys: 2, step: 2}),
+			inputKey: "entry0001",
+			inputKL:  newKeyLocation(1, 1),
+			wantN:    genLeafNode(nodeParams{numKeys: 3, step: 1}),
+		},
+		{
+			name:     "leaf end",
+			inputN:   genLeafNode(nodeParams{numKeys: 5, step: 1}),
+			inputKey: "entry0005",
+			inputKL:  newKeyLocation(5, 5),
+			wantN:    genLeafNode(nodeParams{numKeys: 6, step: 1}),
+		},
+	}
 
 	addChildrenTCs := makeAddChildrenTestCases()
 	for _, tc := range addChildrenTCs {
@@ -326,6 +408,11 @@ func helperCheckNode(t *testing.T, gotN *node, wantN *node) {
 			t.Errorf("incorrect key at index %d: got %s, want %s", i, gotN.keys[i], wantN.keys[i])
 		}
 	}
+	if wantN.leaf {
+		helperCheckKeyLocations(t, gotN, wantN)
+	} else {
+		helperCheckChildern(t, gotN, wantN)
+	}
 }
 
 func helperCheckKeyLocations(t *testing.T, gotN *node, wantN *node) {
@@ -385,9 +472,9 @@ func (n *node) cloneNode() *node {
 			c.keyLocations[i] = &copiedKeyLocation
 		}
 	} else {
+		// I should use make here it would be better
 		c.childPageIDs = slices.Clone(n.childPageIDs)
-		copiedSlice := n.children
-		c.children = copiedSlice
+		c.children = slices.Clone(n.children)
 		for i, child := range n.children {
 			if child == nil {
 				continue
@@ -435,14 +522,18 @@ func genNode(np nodeParams) *node {
 // Generates a fake leaf node
 func genLeafNode(np nodeParams) *node {
 	// Undefined next page (no next page)
-	defaultPageID := uint32(3)
 	var nextPageID uint32 = 0
+	defaultPageID := uint32(3)
+
+	if np.pageID == uint32(0) {
+		np.pageID = defaultPageID
+	}
 
 	n := &node{
 		keys:         genKeys(np.numKeys, np.startIndex, np.step),
 		keyLocations: genKeylocation(np.numKeys, np.startIndex, np.step),
 		NextID:       nextPageID,
-		pageID:       defaultPageID,
+		pageID:       np.pageID,
 		leaf:         true,
 	}
 	return n
