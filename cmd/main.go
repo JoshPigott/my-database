@@ -2,7 +2,7 @@ package main
 
 import (
 	"bubbly-database/internal/database"
-	sqlparser "bubbly-database/internal/sql-parser"
+	"bubbly-database/internal/sql"
 	"fmt"
 	"io"
 )
@@ -11,14 +11,21 @@ var DB *database.DB
 var insertedKeys []string
 
 func main() {
-	s := "SELECT *"
-	tokens, err := sqlparser.Lexer(s)
+	s := "INSERT 'This is the key' 'This is the value'"
+	tokens, err := sql.Lexer(s)
 	if err != nil {
 		fmt.Printf("failed to get tokens with lexer %v\n", err)
 	}
-	for _, t := range tokens {
-		fmt.Println("Token:", t)
+	// for _, t := range tokens {
+	// 	fmt.Println("Token:", t)
+	// }
+	statement, err := sql.Parser(tokens)
+	if err != nil {
+		fmt.Printf("failed to parse tokens into statment: %v\n", err)
 	}
+	// fmt.Println("statment Type:", statement)
+	sql.PrintStatement(statement)
+
 	// testDatabase()
 }
 
