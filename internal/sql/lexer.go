@@ -1,4 +1,4 @@
-package sqlparser
+package sql
 
 import (
 	"errors"
@@ -34,6 +34,7 @@ SQL injections
 Test code
 Write test but later once whole feature works
 Maybe commit
+Also like -, negitive in numbers
 */
 
 type TokenType string
@@ -45,7 +46,7 @@ const (
 	tokSelect            TokenType = "select"
 	tokDelete            TokenType = "delete"
 	tokWhere             TokenType = "where"
-	tokAterisk           TokenType = "*"
+	tokAsterisk          TokenType = "*"
 	tokText              TokenType = "text"
 	tokNumber            TokenType = "number"
 	tokComment           TokenType = "--"
@@ -55,15 +56,16 @@ const (
 	tokMoreThan          TokenType = ">"
 	tokMoreThanOrEqualTo TokenType = ">="
 	tokIdent             TokenType = "ident"
+	tokEnd               TokenType = "end"
 )
 
-var shortCutTokens = []TokenType{tokAnd, tokOr, tokInsert, tokDelete, tokWhere, tokAterisk, tokSelect}
+var shortCutTokens = []TokenType{tokAnd, tokOr, tokInsert, tokDelete, tokWhere, tokAsterisk, tokSelect}
 var symbolTokens = []TokenType{tokEqualto, tokLessThan, tokMoreThan, tokLessThanOrEqualTo, tokMoreThanOrEqualTo}
 var digitChars = []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
 
 type token struct {
-	tokenType TokenType
-	value     string
+	Type  TokenType
+	Value string
 }
 
 // Breaks text down into tokens
@@ -125,8 +127,8 @@ func Lexer(s string) ([]token, error) {
 
 			if subString != "" {
 				tokens = append(tokens, token{
-					tokenType: tokIdent,
-					value:     subString,
+					Type:  tokIdent,
+					Value: subString,
 				})
 				subString = ""
 			}
@@ -138,17 +140,9 @@ func Lexer(s string) ([]token, error) {
 		i += 1
 	}
 	if subString != "" {
-		found, tok := checkShortCutTokens(subString)
-		if found {
-			tokens = append(tokens, tok)
-			subString = ""
-		} else {
-			tokens = append(tokens, token{
-				tokenType: tokIdent,
-				value:     subString,
-			})
-		}
+		tokens = getLastToken(tokens, subString)
 	}
+	tokens = addEnd(tokens)
 	return tokens, nil
 }
 
@@ -165,8 +159,8 @@ func getSymbol(i int, s string) (token, int, error) {
 	for _, t := range symbolTokens {
 		if string(t) == subString {
 			tok := token{
-				tokenType: t,
-				value:     subString,
+				Type:  t,
+				Value: subString,
 			}
 			return tok, i + 1, nil
 		}
@@ -201,15 +195,15 @@ func getNumber(i int, s string) (token, int) {
 			i += 1
 		} else {
 			token := token{
-				tokenType: tokNumber,
-				value:     subString,
+				Type:  tokNumber,
+				Value: subString,
 			}
 			return token, i
 		}
 	}
 	token := token{
-		tokenType: tokNumber,
-		value:     subString,
+		Type:  tokNumber,
+		Value: subString,
 	}
 	return token, i
 }
@@ -227,8 +221,8 @@ func getText(i int, s string) (token, int, error) {
 		// End
 		if char == "'" && subString != "" {
 			token := token{
-				tokenType: tokText,
-				value:     subString,
+				Type:  tokText,
+				Value: subString,
 			}
 			return token, i, nil
 		}
@@ -241,12 +235,34 @@ func checkShortCutTokens(subString string) (bool, token) {
 	for _, t := range shortCutTokens {
 		if string(t) == subString {
 			return true, token{
-				tokenType: t,
-				value:     subString,
+				Type:  t,
+				Value: subString,
 			}
 		}
 	}
 	return false, token{}
+}
+
+// End a token to end slice of tokens saying that is the end
+func addEnd(tokens []token) []token {
+	tokens = append(tokens, token{
+		Type: tokEnd,
+	})
+	return tokens
+}
+
+func getLastToken(tokens []token, subString string) []token {
+	found, tok := checkShortCutTokens(subString)
+	if found {
+		tokens = append(tokens, tok)
+		subString = ""
+	} else {
+		tokens = append(tokens, token{
+			Type:  tokIdent,
+			Value: subString,
+		})
+	}
+	return tokens
 }
 
 func isDigit(char string) bool {
