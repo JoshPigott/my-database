@@ -153,6 +153,10 @@ Each page size is 4096 bytes or 4KB
 - On restart, WAL is used to recover or ignore incomplete changes  
 - Manual transactions apply this all-or-nothing behavior across multiple operations  
 
+
+## Further things
+- Allow logic operations with select. I already have the AST; I just need to turn AND into one search combining the conditions, and OR into separate searches. Or just add results and and just combine filters.
+
 ## Know promblems 
 - duplicates keys cannot be added to the b+tree will regret second key
 - Reading of slots and data could just be one read but they are two atm

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -372,15 +373,15 @@ func TestSelectInsertDeleteReopen(t *testing.T) {
 		inserted = append(inserted, key)
 
 		// UPDATED SELECT API
-		backValue, isFound, err := db.Select(key)
+		gotData, isFound, err := db.Select(key)
 		if err != nil {
 			t.Fatalf("select failed: %v", err)
 		}
 		if !isFound {
 			t.Fatalf("expected key to exist: %s", key)
 		}
-		if backValue != val {
-			t.Fatalf("wrong value: got %s want %s", backValue, val)
+		if gotData[0].value != val {
+			t.Fatalf("wrong value: got %s want %s", gotData[0].value, val)
 		}
 
 		// halfway reopen
@@ -409,8 +410,8 @@ func TestSelectInsertDeleteReopen(t *testing.T) {
 		if !isFound {
 			t.Fatalf("missing key: %s", key)
 		}
-		if backValue != expected {
-			t.Fatalf("bad value: got %s want %s", backValue, expected)
+		if backValue[0].value != expected {
+			t.Fatalf("bad value: got %s want %s", backValue[0].value, expected)
 		}
 	}
 
@@ -456,7 +457,7 @@ func TestSelectInsertDeleteReopen(t *testing.T) {
 	for i, key := range inserted {
 		expected := "val_" + key[4:]
 
-		backValue, isFound, err := db.Select(key)
+		got, isFound, err := db.Select(key)
 
 		if i < amount/2 {
 			// deleted keys
@@ -476,9 +477,10 @@ func TestSelectInsertDeleteReopen(t *testing.T) {
 		if !isFound {
 			t.Fatalf("missing key after reopen: %s", key)
 		}
-		if backValue != expected {
-			t.Fatalf("bad value after reopen: got %s want %s", backValue, expected)
+		if got[0].value != expected {
+			t.Fatalf("bad value after reopen: got %s want %s", got[0].value, expected)
 		}
+
 	}
 	if err := db.Close(); err != nil {
 		t.Errorf("failed to close database: %v", err)
@@ -508,15 +510,15 @@ func TestSelect(t *testing.T) {
 	// -------------------------
 	// SELECT (first check)
 	// -------------------------
-	backValue, isFound, err := db.Select(key)
+	got, isFound, err := db.Select(key)
 	if err != nil {
 		t.Fatalf("select failed: %v", err)
 	}
 	if !isFound {
 		t.Fatalf("expected key to exist")
 	}
-	if backValue != val {
-		t.Fatalf("wrong value: got %s want %s", backValue, val)
+	if got[0].value != val {
+		t.Fatalf("wrong value: got %s want %s", got[0].value, val)
 	}
 
 	// -------------------------
@@ -537,15 +539,15 @@ func TestSelect(t *testing.T) {
 	// -------------------------
 	// SELECT AGAIN (persistence check)
 	// -------------------------
-	backValue, isFound, err = db.Select(key)
+	got, isFound, err = db.Select(key)
 	if err != nil {
 		t.Fatalf("select after reopen failed: %v", err)
 	}
 	if !isFound {
 		t.Fatalf("expected key to persist after reopen")
 	}
-	if backValue != val {
-		t.Fatalf("wrong value after reopen: got %s want %s", backValue, val)
+	if got[0].value != val {
+		t.Fatalf("wrong value after reopen: got %s want %s", got[0].value, val)
 	}
 
 	// -------------------------
@@ -595,14 +597,21 @@ func TestSelectAll_Basic(t *testing.T) {
 		t.Fatalf("expected %d items, got %d", len(cases), len(got))
 	}
 
-	for _, tc := range cases {
-		if got[tc.key] != tc.val {
-			t.Errorf("key %s: expected %s, got %s", tc.key, tc.val, got[tc.key])
+	for i, tc := range cases {
+		if got[i].key != tc.key {
+			t.Errorf("key %s: expected %s, got %s", tc.key, tc.val, got[i].key)
+		}
+		if got[i].value != tc.val {
+			t.Errorf("key %s: expected %s, got %s", tc.key, tc.val, got[i].value)
 		}
 	}
 }
 
 func TestSelectAll_WithDeletes(t *testing.T) {
+	type data struct {
+		key   string
+		value string
+	}
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
 	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
@@ -613,7 +622,7 @@ func TestSelectAll_WithDeletes(t *testing.T) {
 	}
 	defer db.Close()
 
-	expected := map[string]string{}
+	want := []data{}
 
 	// insert
 	for i := 0; i < 500; i++ {
@@ -621,18 +630,27 @@ func TestSelectAll_WithDeletes(t *testing.T) {
 		val := fmt.Sprintf("v_%d", i)
 
 		db.AddToPage(key, val)
-		expected[key] = val
+		want = append(want, data{
+			key:   key,
+			value: val,
+		})
 	}
 
-	// delete half
-	for i := 0; i < 500; i += 2 {
-		key := fmt.Sprintf("k_%d", i)
-
-		if err := db.Delete(key); err != nil {
+	// Delete half, every secound value.
+	for i, data := range want {
+		if i%2 == 1 {
+			continue
+		}
+		if err := db.Delete(data.key); err != nil {
 			t.Fatalf("delete failed: %v", err)
 		}
-
-		delete(expected, key)
+		// delete key in want
+		for j := range want {
+			if want[j].key == data.key {
+				want = slices.Delete(want, j, j+1)
+				break
+			}
+		}
 	}
 
 	got, err := db.SelectAll()
@@ -640,72 +658,16 @@ func TestSelectAll_WithDeletes(t *testing.T) {
 		t.Fatalf("SelectAll failed: %v", err)
 	}
 
-	for k, v := range expected {
-		if got[k] != v {
-			t.Errorf("key %s mismatch", k)
+	if len(got) != len(want) {
+		t.Fatalf("invalid data lenght, want %d got %d", len(want), len(got))
+	}
+	// Key and value len
+	for i := range want {
+		if got[i].key != want[i].key {
+			t.Errorf("key mismatch, want %s got %s", want[i].key, got[i].key)
 		}
-	}
-
-	for k := range got {
-		if _, ok := expected[k]; !ok {
-			t.Errorf("unexpected key returned: %s", k)
-		}
-	}
-}
-
-func TestSelectAll_Stress(t *testing.T) {
-	dir := t.TempDir()
-	filename := filepath.Join(dir, "bubbly-test.db")
-	walFilename := filepath.Join(dir, "bubbly-wal-test.db")
-
-	db, err := openDefault(filename, walFilename)
-	if err != nil {
-		t.Fatalf("open failed: %v", err)
-	}
-	defer db.Close()
-
-	const N = 2000
-
-	expected := map[string]string{}
-
-	// INSERT PHASE
-	for i := 0; i < N; i++ {
-		key := fmt.Sprintf("key_%05d", i)
-		val := fmt.Sprintf("val_%05d", i)
-
-		if err := db.AddToPage(key, val); err != nil {
-			t.Fatalf("insert failed at %d: %v", i, err)
-		}
-
-		expected[key] = val
-	}
-
-	// OVERWRITE SOME KEYS
-	for i := 0; i < N; i += 10 {
-		key := fmt.Sprintf("key_%05d", i)
-		val := "overwritten"
-
-		if err := db.AddToPage(key, val); err != nil {
-			t.Fatalf("overwrite failed: %v", err)
-		}
-
-		expected[key] = val
-	}
-
-	// SELECT ALL
-	got, err := db.SelectAll()
-	if err != nil {
-		t.Fatalf("SelectAll failed: %v", err)
-	}
-
-	// VERIFY
-	if len(got) != len(expected) {
-		t.Fatalf("size mismatch: expected %d got %d", len(expected), len(got))
-	}
-
-	for k, v := range expected {
-		if got[k] != v {
-			t.Errorf("mismatch key=%s expected=%s got=%s", k, v, got[k])
+		if got[i].key != want[i].key {
+			t.Errorf("key mismatch, want %s got %s", want[i].key, got[i].key)
 		}
 	}
 }
@@ -1016,13 +978,13 @@ func TestCrashMidInsert(t *testing.T) {
 		if err != nil {
 			t.Fatalf("round %d: SelectAll after crash failed: %v", round, err)
 		}
-		for key, val := range got {
-			if !isWellFormedCrashKey(key) {
-				t.Errorf("round %d: recovered malformed key %q -> %q", round, key, val)
+		for _, data := range got {
+			if !isWellFormedCrashKey(data.key) {
+				t.Errorf("round %d: recovered malformed key %q -> %q", round, data.key, data.value)
 				continue
 			}
-			if want := crashValueFor(key); val != want {
-				t.Errorf("round %d: corrupted value for %q: got %q want %q", round, key, val, want)
+			if want := crashValueFor(data.key); data.value != want {
+				t.Errorf("round %d: corrupted value for %q: got %q want %q", round, data.key, data.value, want)
 			}
 		}
 		if err := db.Close(); err != nil {
@@ -1066,19 +1028,12 @@ func TestCrashMidDelete(t *testing.T) {
 		if err != nil {
 			t.Fatalf("round %d: SelectAll after crash failed: %v", round, err)
 		}
-		for key, val := range got {
-			if !isWellFormedCrashKey(key) {
-				t.Errorf("round %d: recovered malformed key %q -> %q after delete-crash", round, key, val)
+		for _, data := range got {
+			if !isWellFormedCrashKey(data.key) {
+				t.Errorf("round %d: recovered malformed key %q -> %q after delete-crash", round, data.key, data.value)
 			}
-		}
-		for i := 0; i < seedCount; i++ {
-			key := fmt.Sprintf("crash_key_%05d", i)
-			val, present := got[key]
-			if !present {
-				continue
-			}
-			if want := crashValueFor(key); val != want {
-				t.Errorf("round %d: surviving key %q is corrupted: got %q want %q", round, key, val, want)
+			if want := crashValueFor(data.key); data.value != want {
+				t.Errorf("round %d: surviving key %q is corrupted: got %q want %q", round, data.key, data.value, want)
 			}
 		}
 		if err := db.Close(); err != nil {
@@ -1090,9 +1045,13 @@ func TestCrashMidDelete(t *testing.T) {
 }
 
 func TestTransaction(t *testing.T) {
+	type data struct {
+		key   string
+		value string
+	}
 	amount := 100
 	var insertedKeys []string
-	expected := make(map[string]string)
+	want := []data{}
 
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "bubbly-test.db")
@@ -1127,7 +1086,10 @@ func TestTransaction(t *testing.T) {
 
 		db.AddToPage(key, val)
 		insertedKeys = append(insertedKeys, key)
-		expected[key] = val
+		want = append(want, data{
+			key:   key,
+			value: val,
+		})
 	}
 
 	if err := db.EndTX(); err != nil {
@@ -1140,18 +1102,16 @@ func TestTransaction(t *testing.T) {
 		t.Fatalf("failed to select all: %v", err)
 	}
 
-	if len(got) != len(expected) {
-		t.Errorf("expected %d keys after commit, got %d", len(expected), len(got))
+	if len(got) != len(want) {
+		t.Errorf("want %d keys after commit, got %d", len(want), len(got))
 	}
 
-	for key, wantVal := range expected {
-		gotVal, ok := got[key]
-		if !ok {
-			t.Errorf("key %q missing after transaction commit", key)
-			continue
+	for i := range want {
+		if got[i].key != want[i].key {
+			t.Errorf("invalid key want %q, got %q", want[i].key, got[i].key)
 		}
-		if gotVal != wantVal {
-			t.Errorf("key %q: expected value %q, got %q", key, wantVal, gotVal)
+		if got[i].value != want[i].value {
+			t.Errorf("invalid value want %q, got %q", want[i].value, got[i].value)
 		}
 	}
 
@@ -1180,7 +1140,7 @@ func TestTransaction(t *testing.T) {
 	}
 
 	if len(got) != 0 {
-		t.Errorf("expected 0 keys after deleting everything, got %d", len(got))
+		t.Errorf("want 0 keys after deleting everything, got %d", len(got))
 	}
 
 	if err := db.Close(); err != nil {

@@ -152,11 +152,11 @@ func (db *DB) Delete(key string) error {
 }
 
 // Return in a map of the key -> value. Remove duplicates and deleted records
-func (db *DB) SelectAll() (map[string]string, error) {
-	entries := map[string]string{}
+func (db *DB) SelectAll() ([]Data, error) {
+	data := []Data{}
 	numOfPagesToRead, err := db.Pages.getNumOfPagesToRead()
 	if err != nil {
-		return entries, fmt.Errorf("failed to get page of pages to read %w", err)
+		return []Data{}, fmt.Errorf("failed to get page of pages to read %w", err)
 	}
 	// Loops over each page
 	for pageID := 1; pageID <= numOfPagesToRead; pageID++ {
@@ -165,7 +165,7 @@ func (db *DB) SelectAll() (map[string]string, error) {
 			continue
 		}
 		if err != nil {
-			return entries, fmt.Errorf("failed to format data: %w", err)
+			return []Data{}, fmt.Errorf("failed to format data: %w", err)
 		}
 
 		for _, record := range records {
@@ -173,31 +173,31 @@ func (db *DB) SelectAll() (map[string]string, error) {
 			if record.slot.flag != slotNormal {
 				continue
 			}
-			entries[record.data.key] = record.data.value
+			data = append(data, newData(record.data.key, record.data.value))
 		}
 	}
-	return entries, nil
+	return data, nil
 }
 
 // Uses b+tree to select the value returns; value, if found, error
-func (db *DB) Select(key string) (string, bool, error) {
+func (db *DB) Select(key string) ([]Data, bool, error) {
 	keyLocation, inTree, err := db.FindKeyLocation(key)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to select value: %w", err)
+		return []Data{}, false, fmt.Errorf("failed to select value: %w", err)
 	}
 	if !inTree {
-		return "", false, nil
+		return []Data{}, false, nil
 	}
-	_, value, err := db.Pages.selectValue(keyLocation)
+	data, err := db.Pages.selectData(keyLocation)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to read value with key location: %w", err)
+		return []Data{}, false, fmt.Errorf("failed to read value with key location: %w", err)
 	}
-	return value, true, nil
+	return []Data{data}, true, nil
 }
 
 // All you do to range querries selecting a range of data
-func (db *DB) SelectWhere(condition MathConditions, boundaryKey string) ([]data, error) {
-	var selectedData []data
+func (db *DB) SelectWhere(condition MathConditions, boundaryKey string) ([]Data, error) {
+	var selectedData []Data
 	var err error
 	switch condition {
 	case GreaterThan:

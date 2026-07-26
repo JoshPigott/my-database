@@ -17,8 +17,6 @@ const (
 
 	offsetIndex   = 0
 	bytesLenIndex = 8
-
-	WALFilename
 )
 
 type WALFile struct {

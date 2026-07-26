@@ -2,7 +2,6 @@ package main
 
 import (
 	"bubbly-database/internal/database"
-	"bubbly-database/internal/sql"
 	"fmt"
 	"io"
 )
@@ -11,22 +10,6 @@ var DB *database.DB
 var insertedKeys []string
 
 func main() {
-	s := "INSERT 'This is the key' 'This is the value'"
-	tokens, err := sql.Lexer(s)
-	if err != nil {
-		fmt.Printf("failed to get tokens with lexer %v\n", err)
-	}
-	// for _, t := range tokens {
-	// 	fmt.Println("Token:", t)
-	// }
-	statement, err := sql.Parser(tokens)
-	if err != nil {
-		fmt.Printf("failed to parse tokens into statment: %v\n", err)
-	}
-	// fmt.Println("statment Type:", statement)
-	sql.PrintStatement(statement)
-
-	// testDatabase()
 }
 
 func testDatabase() {
@@ -74,8 +57,8 @@ func lookAtData() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("Map length:", len(data))
-	for key, value := range data {
-		fmt.Printf("key: %-12s value: %-22s\n", key, value)
+	fmt.Println("Data length:", len(data))
+	for i := range data {
+		fmt.Printf("data: %s\n", data[i])
 	}
 }
