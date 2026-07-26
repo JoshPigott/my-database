@@ -54,7 +54,7 @@ func (condition) exprNode() {}
 func (binary) exprNode()    {}
 
 // Connvert tokens into a statment which can be executed
-func Parser(tokens []token) (statement, error) {
+func parse(tokens []token) (statement, error) {
 	p := parser{
 		i:      0,
 		tokens: tokens,
@@ -192,7 +192,7 @@ func (p *parser) getCondition() (condition, error) {
 		return condition{}, fmt.Errorf("expected value")
 	}
 	if token.Type != tokText {
-		return condition{}, errors.New("expected value to of type text")
+		return condition{}, errors.New("expected value of type text")
 	}
 	c := condition{
 		inequalitySymbol: inequalitySymbol,
@@ -227,13 +227,4 @@ func (p *parser) pop() token {
 // Check if all the tokens have been consumed or not
 func (p *parser) isEnd() bool {
 	return p.i == len(p.tokens)-1
-}
-
-// Used for debugging
-func PrintStatement(statement statement) {
-	fmt.Println("statement Type:", statement.Type)
-	fmt.Println("statement keyType:", statement.keyType)
-	fmt.Println("statement Key:", statement.Key)
-	fmt.Println("statement value:", statement.Value)
-	fmt.Println("statement where:", statement.Where)
 }

@@ -69,7 +69,7 @@ type token struct {
 }
 
 // Breaks text down into tokens
-func Lexer(s string) ([]token, error) {
+func lexer(s string) ([]token, error) {
 	var err error
 	var tok token
 	s = strings.TrimSpace(s)
