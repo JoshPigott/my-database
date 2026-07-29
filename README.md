@@ -153,9 +153,26 @@ Each page size is 4096 bytes or 4KB
 - On restart, WAL is used to recover or ignore incomplete changes  
 - Manual transactions apply this all-or-nothing behavior across multiple operations  
 
+# SQL (Structured Query Language)
 
-## Further things
-- Allow logic operations with select. I already have the AST; I just need to turn AND into one search combining the conditions, and OR into separate searches. Or just add results and and just combine filters.
+> **Note:** This is a simplified SQL implementation built for learning.
+
+**Pipeline:** `Query → Lexer → Parser → Executor`
+
+## Lexer
+- Splits the query into tokens (e.g. `tokSelect`, `tokText`, `tokAnd`).
+- Appends an `tokEnd` token when finished.
+
+## Parser
+- Converts tokens into a statement (AST).
+- Uses a finite state machine to validate syntax.
+
+## Executor
+- Using statment executes the corresponding database operation (`Insert`, `Delete`, `Select`).
+
+## Future Improvements
+- Support logical operators (`AND` and `OR`) in `SELECT` queries.
+- The AST already made; the remaining work is to implement them in the executor. `AND` combines filters into a single query, while `OR` executes multiple queries and merges the results.
 
 ## Know promblems 
 - duplicates keys cannot be added to the b+tree will regret second key
